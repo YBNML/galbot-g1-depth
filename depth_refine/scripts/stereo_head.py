@@ -71,7 +71,7 @@ def _disparity_vmin_vmax(disp: np.ndarray) -> Tuple[float, float]:
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parse_args(argv)
 
-    selected_matcher = select_methods([args.matcher], "matcher", available_matchers, get_matcher)
+    selected_matcher = select_methods([args.matcher], available_matchers, get_matcher)
     if not selected_matcher:
         print("[error] no requested matcher could run: {}".format([args.matcher]))
         return 1
@@ -80,8 +80,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     refiner_name: Optional[str] = None
     refiner = None
     if args.refine:
-        selected_refiner = select_methods(
-            [args.refine], "refiner", available_refiners, get_refiner)
+        selected_refiner = select_methods([args.refine], available_refiners, get_refiner)
         if not selected_refiner:
             print("[error] no requested refiner could run: {}".format([args.refine]))
             return 1

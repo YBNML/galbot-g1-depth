@@ -3,9 +3,12 @@
 두 CLI 모두 "데이터셋을 순회 → 방법(들)을 실행 → GT 있으면 메트릭, 없으면 hole_ratio만
 → 프레임별 side-by-side PNG + metrics.csv(frame, method, mae, rmse, hole_ratio_pred,
 runtime_ms) + 콘솔 요약표"라는 동일한 리포트 구조를 따른다(Task 8에서 refine_wrist.py로
-먼저 구현되었고, Task 11에서 stereo_head.py와 공유하기 위해 이 모듈로 추출됨 — 원본
-동작은 그대로 유지). 이름 그대로 두 스크립트의 내부 구현 세부사항이라 밑줄 프리픽스
-모듈이며, 외부에서 임포트해 쓰라고 만든 공개 API가 아니다.
+먼저 구현되었고, Task 11에서 stereo_head.py와 공유하기 위해 이 모듈로 추출됨 — Task 8이
+계약한 관측 가능한 출력, 특히 콘솔 skip 메시지 문구 `[skip] <이름>: <사유>`와
+metrics.csv 스키마는 그대로 유지한다; 내부 구현(예: CSV를 프레임마다 스트리밍
+기록하지 않고 다 모아 한 번에 쓰는 것)은 동일한 관측 가능 출력을 내는 한도 내에서
+바뀌었다). 이름 그대로 두 스크립트의 내부 구현 세부사항이라 밑줄 프리픽스 모듈이며,
+외부에서 임포트해 쓰라고 만든 공개 API가 아니다.
 """
 from __future__ import annotations
 
@@ -22,14 +25,15 @@ METRICS_HEADER = ["frame", "method", "mae", "rmse", "hole_ratio_pred", "runtime_
 SUMMARY_FIELDS = ("mae", "rmse", "hole_ratio_pred", "runtime_ms")
 
 
-def select_methods(requested: Sequence[str], kind_label: str,
+def select_methods(requested: Sequence[str],
                     available_fn: Callable[[], List[str]],
                     get_fn: Callable[[str], Any]) -> List[Tuple[str, Any]]:
     """요청된 이름들을 ``get_fn``으로 인스턴스화해 ``(이름, 인스턴스)`` 목록으로 해석.
 
     미등록 이름(``get_fn``이 던지는 KeyError) 또는 등록됐지만 ``available_fn()`` 결과에
-    없는(비가용 — 무거운 의존성 미설치 등) 이름은 건너뛰고
-    ``[skip] <kind_label> <이름>: <사유>``를 출력한다 — 예외를 던지지 않는다.
+    없는(비가용 — 무거운 의존성 미설치 등) 이름은 건너뛰고 ``[skip] <이름>: <사유>``를
+    출력한다 — Task 8이 계약한 정확한 문구(``refine_wrist.py``의 원래 구현 그대로)이며
+    ``stereo_head.py``도 동일하게 따른다. 예외는 던지지 않는다.
     "선택 결과가 비면 실패로 볼지"는 호출부가 결정한다(refine_wrist는 요청된 여러
     방법 중 일부만 비어도 계속 진행, stereo_head는 매처/refiner 각각 단일 필수
     항목이라 비면 그 자리에서 실패 처리).
@@ -41,11 +45,10 @@ def select_methods(requested: Sequence[str], kind_label: str,
             obj = get_fn(name)
         except KeyError as e:
             reason = e.args[0] if e.args else str(e)
-            print("[skip] {} {!r}: {}".format(kind_label, name, reason))
+            print("[skip] {}: {}".format(name, reason))
             continue
         if name not in avail:
-            print("[skip] {} {!r}: registered but not available (missing dependencies)".format(
-                kind_label, name))
+            print("[skip] {}: registered but not available (missing dependencies)".format(name))
             continue
         selected.append((name, obj))
     return selected
@@ -120,7 +123,11 @@ def write_metrics_csv(path, rows: List[Dict[str, Any]]) -> None:
 
 
 def imwrite_or_raise(path, img: np.ndarray) -> None:
-    """cv2.imwrite 실패를 조용히 무시하지 않고 IOError로 표면화."""
+    """cv2.imwrite 실패를 조용히 무시하지 않고 IOError로 표면화.
+
+    두 호출부 모두 프레임 패널 PNG(`frame_{idx:06d}.png`) 저장 전용이므로, 메시지
+    문구는 refine_wrist.py의 원래 구현 그대로 "프레임 이미지 저장 실패"를 쓴다.
+    """
     ok = cv2.imwrite(str(path), img)
     if not ok:
-        raise IOError("이미지 저장 실패: {}".format(path))
+        raise IOError("프레임 이미지 저장 실패: {}".format(path))

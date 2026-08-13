@@ -56,7 +56,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     requested = ([m.strip() for m in args.methods.split(",") if m.strip()]
                  if args.methods else list(available_refiners()))
-    selected = select_methods(requested, "method", available_refiners, get_refiner)
+    selected = select_methods(requested, available_refiners, get_refiner)
     if not selected:
         print("[error] no requested method could run: {}".format(requested))
         return 1
