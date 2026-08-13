@@ -35,10 +35,12 @@ from ._report import (
     write_metrics_csv,
 )
 
-# 임포트만으로 레지스트리 등록을 트리거한다. mono_scale은 등록만 가벼우며
-# 실제 백엔드(torch/transformers 모델)는 refine() 최초 호출 시점에만 로드된다.
+# 임포트만으로 레지스트리 등록을 트리거한다. mono_scale/prompt_da/prior_da는 등록만
+# 가벼우며 실제 백엔드(torch 모델)는 refine() 최초 호출 시점에만 로드된다.
 from ..refiners import classical  # noqa: F401
 from ..refiners import mono_scale  # noqa: F401
+from ..refiners import prompt_da  # noqa: F401
+from ..refiners import prior_da  # noqa: F401
 
 
 def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:

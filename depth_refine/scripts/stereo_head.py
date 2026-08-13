@@ -40,8 +40,11 @@ from ._report import (
 
 # 임포트만으로 레지스트리 등록을 트리거한다.
 from ..stereo import sgbm  # noqa: F401
+from ..stereo import learned_stereo  # noqa: F401
 from ..refiners import classical  # noqa: F401
 from ..refiners import mono_scale  # noqa: F401
+from ..refiners import prompt_da  # noqa: F401
+from ..refiners import prior_da  # noqa: F401
 
 
 def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
