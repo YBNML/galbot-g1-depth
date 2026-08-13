@@ -33,10 +33,17 @@ def select_methods(requested: Sequence[str],
     미등록 이름(``get_fn``이 던지는 KeyError) 또는 등록됐지만 ``available_fn()`` 결과에
     없는(비가용 — 무거운 의존성 미설치 등) 이름은 건너뛰고 ``[skip] <이름>: <사유>``를
     출력한다 — Task 8이 계약한 정확한 문구(``refine_wrist.py``의 원래 구현 그대로)이며
-    ``stereo_head.py``도 동일하게 따른다. 예외는 던지지 않는다.
-    "선택 결과가 비면 실패로 볼지"는 호출부가 결정한다(refine_wrist는 요청된 여러
+    ``stereo_head.py``도 동일하게 따른다(형식은 ``test_skip_message_matches_task8_
+    contract``로 고정 — 이 함수를 고칠 때 그 형식만은 절대 깨면 안 된다). 예외는 던지지
+    않는다. "선택 결과가 비면 실패로 볼지"는 호출부가 결정한다(refine_wrist는 요청된 여러
     방법 중 일부만 비어도 계속 진행, stereo_head는 매처/refiner 각각 단일 필수
     항목이라 비면 그 자리에서 실패 처리).
+
+    비가용 사유 텍스트: 인스턴스(``obj``)의 ``unavailable_reason`` 속성(Task 14의 무거운
+    모델 어댑터들이 ``is_available()``에서 채워두는, "왜 안 되는지" 한 줄 사유)이 있고
+    비어있지 않으면 그것을 사유로 쓴다 — 없으면(고전/일반 refiner·matcher처럼 애초에 이
+    속성이 없거나, 어떤 이유로 비어 있으면) 기존 고정 문구로 폴백한다. ``[skip] <이름>:
+    <사유>`` 형식 자체는 그대로이고 사유 텍스트만 더 구체적으로 바뀐다.
     """
     avail = set(available_fn())
     selected: List[Tuple[str, Any]] = []
@@ -48,7 +55,9 @@ def select_methods(requested: Sequence[str],
             print("[skip] {}: {}".format(name, reason))
             continue
         if name not in avail:
-            print("[skip] {}: registered but not available (missing dependencies)".format(name))
+            reason = getattr(obj, "unavailable_reason", None) or \
+                "registered but not available (missing dependencies)"
+            print("[skip] {}: {}".format(name, reason))
             continue
         selected.append((name, obj))
     return selected

@@ -46,6 +46,11 @@ declare -A CLONED WEIGHTS_OK IMPORT_OK
 for m in prompt_da prior_da foundation_stereo fast_fs; do
     CLONED[$m]="?"; WEIGHTS_OK[$m]="?"; IMPORT_OK[$m]="?"
 done
+# torch/transformers 핀이 이 스크립트 실행 중 한 번이라도 바뀌면 1 — 스크립트 끝에서
+# exit code로 강제한다(리뷰 지적: 기존엔 경고만 찍고 exit 0으로 고정돼 있어 CI 등에서
+# 조용히 지나칠 수 있었음). 개별 모델의 unavailable은 여전히 이 스크립트를 실패로
+# 만들지 않는다 — 핀 변경만 별도로 강제되는 불변식이다.
+PINS_CHANGED=0
 
 if ! command -v conda >/dev/null 2>&1; then
     log "FATAL: conda를 찾을 수 없음 (PATH에 없음) — conda 환경에서 실행하세요"
@@ -77,11 +82,15 @@ print('torch={} transformers={}'.format(t, tr))
 " 2>/dev/null
 }
 
-warn_if_pins_changed() {
+check_pins_changed() {
+    # check_pins_changed <before> <after> <stage_label>
+    # 변경을 감지하면 로그를 남기고 전역 PINS_CHANGED=1을 세팅한다 — 스크립트 마지막에
+    # 이 플래그를 exit code에 반영해 실제로 강제한다(단순 경고에 그치지 않도록, 리뷰 지적).
     local before="$1" after="$2" stage="$3"
     if [ "$before" != "$after" ]; then
         log "!!! WARNING [$stage]: CURRENT env의 torch/transformers 핀이 바뀜!" \
             "이전=[$before] 이후=[$after] — 의도치 않은 업/다운그레이드 가능성, 확인 필요"
+        PINS_CHANGED=1
     else
         log "OK [$stage]: torch/transformers 핀 변화 없음 ($after)"
     fi
@@ -140,7 +149,7 @@ else
 fi
 
 PINS_AFTER="$(snapshot_pins)"
-warn_if_pins_changed "$PINS_BEFORE" "$PINS_AFTER" "prompt_da/prior_da deps"
+check_pins_changed "$PINS_BEFORE" "$PINS_AFTER" "prompt_da/prior_da deps"
 set -e 2>/dev/null || true
 
 # ======================================================================
@@ -278,6 +287,13 @@ set -e 2>/dev/null || true
 # ======================================================================
 hr; log "STEP 5/5: 요약표 산출"
 
+# 전체 실행(STEP 2의 pip install들 + STEP 3의 conda env 생성/설치 + STEP 4의 다운로드)을
+# 통틀어 CURRENT env의 핀이 최종적으로 처음(STEP 2 시작 시점, PINS_BEFORE)과 같은지 재확인
+# — STEP 2 자체의 전후 비교(위)는 그 단계만 보지만, 이 최종 비교가 실질적으로 강제되는
+# 불변식이다(STEP 3/4가 CURRENT env를 건드릴 리는 없지만 실측으로 재확인).
+PINS_FINAL="$(snapshot_pins)"
+check_pins_changed "$PINS_BEFORE" "$PINS_FINAL" "overall (스크립트 종료 시점)"
+
 for m in prompt_da prior_da foundation_stereo fast_fs; do
     [ "${CLONED[$m]}" = "?" ] && CLONED[$m]="FAIL"
 done
@@ -346,13 +362,27 @@ else
     done
 fi
 
+if [ "$PINS_CHANGED" = "1" ]; then
+    PINS_ROW_STATUS="CHANGED! baseline=[$PINS_BEFORE] final=[$PINS_FINAL] -- see WARNING above"
+else
+    PINS_ROW_STATUS="OK ($PINS_FINAL)"
+fi
+
 hr
 printf "%-20s %-8s %-10s %-s\n" "model" "cloned" "weights" "import-ok"
 printf "%-20s %-8s %-10s %-s\n" "--------------------" "--------" "----------" "--------------------------------------------------"
 for m in prompt_da prior_da foundation_stereo fast_fs; do
     printf "%-20s %-8s %-10s %-s\n" "$m" "${CLONED[$m]}" "${WEIGHTS_OK[$m]}" "${IMPORT_OK[$m]}"
 done
+printf "%-20s %-8s %-10s %-s\n" "pins(torch/tf)" "-" "-" "$PINS_ROW_STATUS"
 hr
-log "완료. 개별 모델이 unavailable이어도 이 스크립트는 실패로 취급하지 않는다(0 종료)."
+log "완료. 개별 모델이 unavailable이어도 이 스크립트는 실패로 취급하지 않는다."
 log "수동 복구 절차는 third_party/README.md 참고."
+
+if [ "$PINS_CHANGED" = "1" ]; then
+    log "FAIL: torch/transformers 핀이 이번 실행 중 바뀌었다 — 이 스크립트의 핵심 불변식(현재 env의"
+    log "  torch/transformers는 절대 다운/업그레이드하지 않는다) 위반이라 non-zero로 종료한다."
+    log "  (다른 단계들은 설계대로 계속 진행/시도했다 — 위 요약표와 WARNING 로그로 어느 단계인지 확인)"
+    exit 2
+fi
 exit 0

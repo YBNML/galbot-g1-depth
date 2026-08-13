@@ -91,7 +91,11 @@ class _SubprocessStereoMatcher(StereoMatcher):
 
     서브클래스는 다음 클래스 속성/메서드를 채운다:
         ``_repo_dir``, ``_bridge_script``, ``_python_env_var``, ``_default_conda_env``,
-        ``_default_valid_iters``, ``_checkpoint_paths()`` (존재해야 하는 가중치 경로 목록),
+        ``_default_valid_iters``, ``_probe_import``(``is_available()``이 서브프로세스
+        env에서 실제로 import를 시도할 모듈 경로 — 이 레포의 브리지 스크립트가 실제로
+        import하는 모듈이어야 한다, 리뷰에서 지적됨: FastFsMatcher는 core.foundation_stereo를
+        쓰지 않으므로 자신의 브리지가 쓰는 core.utils.utils를 써야 함),
+        ``_checkpoint_paths()`` (존재해야 하는 가중치 경로 목록),
         ``_build_command(python, npz_path, out_path, scale, valid_iters)``.
     """
 
@@ -104,6 +108,7 @@ class _SubprocessStereoMatcher(StereoMatcher):
     _python_env_var: str
     _default_conda_env: str
     _default_valid_iters: int
+    _probe_import: str   # is_available()이 서브프로세스에서 import를 시도할 모듈 (서브클래스별)
 
     _python_check_cache: Dict[str, Optional[str]] = {}
     _cache_lock = threading.Lock()
@@ -129,7 +134,14 @@ class _SubprocessStereoMatcher(StereoMatcher):
 
     @classmethod
     def _check_python_importable(cls, python: Path) -> Optional[str]:
-        """resolved python에서 이 레포의 core 모듈이 임포트 가능한지 저비용 서브프로세스로 확인.
+        """resolved python에서 이 레포의 ``_probe_import`` 모듈이 임포트 가능한지 저비용
+        서브프로세스로 확인.
+
+        ``_probe_import``는 서브클래스가 지정 — **그 레포의 브리지 스크립트가 실제로
+        import하는 모듈**이어야 실제 사용 가능성을 정확히 대변한다(FoundationStereoMatcher는
+        ``core.foundation_stereo``를 직접 import하지만, FastFsMatcher의 브리지는 가중치가
+        pickle된 전체 모델이라 ``core.foundation_stereo``를 직접 import하지 않고
+        ``core.utils.utils``만 쓴다 — 리뷰에서 지적된 불일치를 고쳤다).
 
         결과를 python 경로별로 캐싱(같은 프로세스 내 반복 호출 비용 절감). 절대 예외를
         던지지 않는다 — 서브프로세스 실행 자체가 실패해도(타임아웃, 권한 등) 사유 문자열로
@@ -141,8 +153,8 @@ class _SubprocessStereoMatcher(StereoMatcher):
                 return cls._python_check_cache[key]
         probe = (
             "import sys; sys.path.insert(0, {!r}); import torch; "
-            "import core.foundation_stereo".format(str(cls._repo_dir))
-        )
+            "import {}"
+        ).format(str(cls._repo_dir), cls._probe_import)
         try:
             result = subprocess.run(
                 [str(python), "-c", probe],
@@ -160,28 +172,43 @@ class _SubprocessStereoMatcher(StereoMatcher):
 
     @classmethod
     def is_available(cls) -> bool:
-        if not cls._repo_dir.is_dir():
-            cls.unavailable_reason = (
-                "repo not cloned at {} (run scripts_dev/setup_models.sh)".format(cls._repo_dir))
+        """repo 클론 + 가중치 + 서브프로세스 python + import 가능성을 순서대로 확인.
+
+        본문 전체를 ``try/except Exception``으로 감싼다 — ``Path.is_dir/is_file``,
+        ``Path.expanduser()``(``_candidate_conda_pythons``에서 호출, ``HOME`` 미설정 시
+        ``RuntimeError`` 가능) 등 절대 예외를 던지지 않아야 하는 이 메서드 안에서 실제로
+        raise할 수 있는 지점들에 대한 마지막 방어선(리뷰에서 지적됨) — ``_check_python_
+        importable()``은 자체적으로 이미 방어돼 있지만 그 앞의 경로 확인 단계들은 그렇지
+        않았다.
+        """
+        try:
+            if not cls._repo_dir.is_dir():
+                cls.unavailable_reason = (
+                    "repo not cloned at {} (run scripts_dev/setup_models.sh)".format(cls._repo_dir))
+                return False
+            missing = [str(p) for p in cls._checkpoint_paths() if not p.is_file()]
+            if missing:
+                cls.unavailable_reason = (
+                    "weights missing: {} (run scripts_dev/setup_models.sh; Google Drive quota "
+                    "may require a manual retry, see third_party/README.md)".format(
+                        ", ".join(missing)))
+                return False
+            python = cls._resolve_python()
+            if python is None:
+                cls.unavailable_reason = (
+                    "no python found for subprocess env (set ${} or create conda env {!r} via "
+                    "scripts_dev/setup_models.sh)".format(cls._python_env_var, cls._default_conda_env))
+                return False
+            reason = cls._check_python_importable(python)
+            if reason is not None:
+                cls.unavailable_reason = reason
+                return False
+            cls.unavailable_reason = None
+            return True
+        except Exception as e:
+            cls.unavailable_reason = "unexpected error while checking availability: {}: {}".format(
+                type(e).__name__, e)
             return False
-        missing = [str(p) for p in cls._checkpoint_paths() if not p.is_file()]
-        if missing:
-            cls.unavailable_reason = (
-                "weights missing: {} (run scripts_dev/setup_models.sh; Google Drive quota "
-                "may require a manual retry, see third_party/README.md)".format(", ".join(missing)))
-            return False
-        python = cls._resolve_python()
-        if python is None:
-            cls.unavailable_reason = (
-                "no python found for subprocess env (set ${} or create conda env {!r} via "
-                "scripts_dev/setup_models.sh)".format(cls._python_env_var, cls._default_conda_env))
-            return False
-        reason = cls._check_python_importable(python)
-        if reason is not None:
-            cls.unavailable_reason = reason
-            return False
-        cls.unavailable_reason = None
-        return True
 
     # ---- 서브클래스가 채우는 부분 ----
 
@@ -252,6 +279,9 @@ class FoundationStereoMatcher(_SubprocessStereoMatcher):
     _python_env_var = "FOUNDATION_STEREO_PYTHON"
     _default_conda_env = "fs_stereo"
     _default_valid_iters = 16   # README 권장: 6GB급 VRAM에서는 32(기본)보다 줄여서 사용
+    # _foundation_stereo_bridge.py가 실제로 `from core.foundation_stereo import
+    # FoundationStereo`를 하므로 그 모듈을 그대로 프로브 대상으로 쓴다.
+    _probe_import = "core.foundation_stereo"
 
     _CKPT_SUBDIR = "11-33-40"
     _CKPT_FILENAME = "model_best_bp2.pth"
@@ -296,6 +326,11 @@ class FastFsMatcher(_SubprocessStereoMatcher):
     _python_env_var = "FAST_FS_PYTHON"
     _default_conda_env = "ffs_stereo"
     _default_valid_iters = 8   # 체크포인트 자체의 cfg.yaml 기본값과 동일(README 트레이드오프 표)
+    # _fast_fs_bridge.py는 가중치가 pickle된 전체 모델 객체라 `core.foundation_stereo`를
+    # 직접 import하지 않는다(torch.load가 언피클 시점에 내부적으로 그 모듈을 참조하긴 하지만,
+    # 브리지 스크립트의 코드 자체가 명시적으로 import하는 건 core.utils.utils뿐이다) —
+    # 그래서 프로브 대상도 실제로 import하는 이 모듈로 맞춘다(리뷰에서 지적된 불일치 수정).
+    _probe_import = "core.utils.utils"
 
     _CKPT_SUBDIR = "23-36-37"
     _CKPT_FILENAME = "model_best_bp2_serialize.pth"

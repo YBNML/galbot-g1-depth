@@ -98,23 +98,35 @@ class PriorDaRefiner(DepthRefiner):
 
     @classmethod
     def is_available(cls) -> bool:
-        """repo 클론 + 가중치 2개 파일 + import 가능성을 순서대로 확인. 예외를 던지지 않는다."""
-        if not _REPO_DIR.is_dir():
-            cls.unavailable_reason = (
-                "repo not cloned at {} (run scripts_dev/setup_models.sh)".format(_REPO_DIR))
+        """repo 클론 + 가중치 2개 파일 + import 가능성을 순서대로 확인. 예외를 던지지 않는다.
+
+        본문 전체를 ``try/except Exception``으로 감싼다 — ``Path.is_dir/is_file``도
+        권한 오류 등 드물지만 실제로 raise할 수 있는 경우가 있고, ``_check_importable()``이
+        다루지 않는 예상 밖 예외까지 절대 새어나가지 않도록 마지막 방어선을 둔다
+        (리뷰에서 지적됨).
+        """
+        try:
+            if not _REPO_DIR.is_dir():
+                cls.unavailable_reason = (
+                    "repo not cloned at {} (run scripts_dev/setup_models.sh)".format(_REPO_DIR))
+                return False
+            fmde_path, cond_path = cls._weight_paths()
+            missing = [str(p) for p in (fmde_path, cond_path) if not p.is_file()]
+            if missing:
+                cls.unavailable_reason = (
+                    "weights missing: {} (run scripts_dev/setup_models.sh)".format(
+                        ", ".join(missing)))
+                return False
+            reason = _check_importable()
+            if reason is not None:
+                cls.unavailable_reason = reason
+                return False
+            cls.unavailable_reason = None
+            return True
+        except Exception as e:
+            cls.unavailable_reason = "unexpected error while checking availability: {}: {}".format(
+                type(e).__name__, e)
             return False
-        fmde_path, cond_path = cls._weight_paths()
-        missing = [str(p) for p in (fmde_path, cond_path) if not p.is_file()]
-        if missing:
-            cls.unavailable_reason = (
-                "weights missing: {} (run scripts_dev/setup_models.sh)".format(", ".join(missing)))
-            return False
-        reason = _check_importable()
-        if reason is not None:
-            cls.unavailable_reason = reason
-            return False
-        cls.unavailable_reason = None
-        return True
 
     @classmethod
     def _get_model(cls, model_size: str, version: str, device: str) -> Any:
