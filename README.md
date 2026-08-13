@@ -145,9 +145,12 @@ median depth error는 각각 **7.2mm**, **5.9mm**(hole 없이 100% dense, 480×6
 ## 7. 로봇 절차
 
 로봇에서는 `record.py` 하나만 실행한다. 나머지는 전부 그 데이터셋 폴더를 PC에서 처리한다.
-아래 0)/1)/3) 명령은 **로봇(Galbot SDK 설치된 환경)에서 실행하는 명령이다** — 개발 PC 등
-SDK가 없는 곳에서 실행하면 `RuntimeError: Galbot SDK를 찾을 수 없습니다...`가 명확한
-메시지와 함께 즉시 발생한다(우아한 비활성화 — 실측 확인, 크래시가 아니라 의도된 가드다).
+아래 명령 중 `probe_d405.py`와 `record.py --source galbot`은 **로봇(Galbot SDK/D405 카메라가
+있는 환경)에서 실행하는 명령이다** — 나머지(`calibrate_head.py`/`check_sync.py`/
+`refine_wrist.py`/`stereo_head.py` 등)는 그 결과 데이터셋 폴더만 있으면 PC에서 실행한다. SDK가
+없는 곳에서 `record.py --source galbot`을 실행하면 `RuntimeError: Galbot SDK를 찾을 수
+없습니다...`가 명확한 메시지와 함께 즉시 발생한다(우아한 비활성화 — 실측 확인, 크래시가
+아니라 의도된 가드다).
 
 ```bash
 # 0) (선택, 1회) 손목 D405의 좌우 IR을 SDK 우회로 직접 볼 수 있는지 시험
@@ -163,34 +166,34 @@ conda run -n depthref python -m depth_refine.scripts.record \
 #    _sdk_extrinsic/_synced_pair/_acquire_robot 중 하나, 메시지 필드명이 다르면
 #    _decode_rgb/_decode_depth/_to_intrinsics 중 하나.
 
-# 3) 실제 녹화 (절대 스케줄로 --hz만큼, 종료 시 자동으로 check_sync 실행됨)
+# 3) 헤드 스테레오 캘리브레이션 세션 녹화(--mode calib, 리그 셋업당 보통 1회) → calibrate_head 실행
+#    체커보드를 들고 --countdown초(기본 2초)마다 새 위치·기울기로 옮기며 촬영한다
+#    (--mode frames로 매 녹화마다 자동 저장되는 head/extrinsics_sdk.json은 SDK가 주는
+#    대략적인 참고 extrinsics일 뿐 — 이 정밀 캘리브레이션과는 별개)
+conda run -n depthref python -m depth_refine.scripts.record \
+    --source galbot --mode calib --out datasets/session1_calib --frames 15 --hz 1
+conda run -n depthref python -m depth_refine.scripts.calibrate_head \
+    --dataset datasets/session1_calib --out datasets/session1_calib.yaml
+
+# 4) 실제 녹화 (절대 스케줄로 --hz만큼, 종료 시 자동으로 check_sync 실행됨)
 conda run -n depthref python -m depth_refine.scripts.record \
     --source galbot --out datasets/session1 --frames 30 --hz 5 --side left
 
-# 4) 동기 품질 재확인(2에서 record.py가 이미 한 번 실행하지만 독립적으로도 가능)
+# 5) 동기 품질 재확인(4에서 record.py가 이미 한 번 실행하지만 독립적으로도 가능)
 conda run -n depthref python -m depth_refine.scripts.check_sync --dataset datasets/session1
 
-# 5) 이후는 §4의 동일 CLI를 --dataset datasets/session1 로 그대로 실행
+# 6) 이후는 §4의 동일 CLI를 --dataset datasets/session1 로 그대로 실행
 conda run -n depthref python -m depth_refine.scripts.refine_wrist \
     --dataset datasets/session1 --out reports/session1_wrist
 conda run -n depthref python -m depth_refine.scripts.stereo_head \
-    --dataset datasets/session1 --calib <calib.yaml> --out reports/session1_head
+    --dataset datasets/session1 --calib datasets/session1_calib.yaml --out reports/session1_head
 ```
 
 `--source mock`(record.py)은 로봇 없이 record→writer 배선만 스모크 테스트하고 싶을 때 쓴다
-(GT 기하 정확성이 아니라 배선 검증이 목적이라 손목·헤드 모두 같은 mock 씬 하나를 쓴다).
-
-**알려진 갭 — 실 로봇용 정밀 캘리브레이션 녹화 CLI가 아직 없다.** `calibrate_head.py`는
-데이터셋의 `calib_head/` 체커보드 좌우 쌍(`DatasetReader.iter_calib()`)을 입력으로 삼는데,
-`calib_head/`를 채우는 `DatasetWriter.add_calib_pair()`는 현재 `make_mock_dataset.py`(합성
-체커보드)만 호출한다 — `record.py`는 손목/헤드 **동작 프레임**만 녹화하고 체커보드
-캘리브레이션 세션은 녹화하지 않는다(단, `head/extrinsics_sdk.json`으로 SDK가 주는 대략적인
-참고 extrinsics는 매 녹화마다 자동 저장 — `calibrate_head.py`가 만드는 정밀 캘리브레이션과는
-별개의 초기 추정값일 뿐). 실로봇에서 정밀 캘리브레이션하려면 지금은 `source.get_head_pair()`를
-체커보드를 들고 여러 포즈에서 호출해 `writer.add_calib_pair(left, right)`로 직접 저장하는
-짧은 스크립트가 필요하다(API는 이미 있음, 전용 CLI 플래그만 없음) — 향후 태스크 후보로
-남겨둔다. 캘리브레이션은 보통 1회성 절차이므로 이 갭이 §4/§7의 반복 녹화 흐름 자체를
-막지는 않는다.
+(GT 기하 정확성이 아니라 배선 검증이 목적이라 손목·헤드 모두 같은 mock 씬 하나를 쓴다.
+`--mode calib`도 `--source mock`으로 동일하게 스모크 테스트할 수 있다 — mock head 씬을
+그대로 체커보드 페어인 것처럼 `calib_head/`에 저장할 뿐이니 실제 체커보드 검출용이 아니라
+record.py→writer 배선 확인용이다).
 
 `galbot_source.py`의 모든 SDK 호출은 **공식 문서 기반으로 작성됐고 아직 실물 로봇에서
 실행해본 적이 없다** — 위 0~2단계가 그 검증 절차다.
@@ -277,7 +280,7 @@ YBNML_Depth_Refinement/
 ├── third_party/                     # git-ignored (README.md만 추적) — setup_models.sh 산출물
 ├── weights/                         # git-ignored — setup_models.sh 산출물
 ├── datasets/, reports/              # git-ignored — 실행 결과물 (§4, §5)
-├── tests/                           # pytest (합성 GT 기반, 51개 — §11)
+├── tests/                           # pytest (합성 GT 기반, 52개 — §11)
 ├── environment.yml
 └── pyproject.toml
 ```
@@ -288,8 +291,8 @@ YBNML_Depth_Refinement/
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 conda run -n depthref pytest -v
 ```
 
-기본(non-slow) 스위트: **46 passed, 5 deselected**. `@slow`(무거운 모델 실가중치 필요)까지
-포함한 전체 51개도 이 저장소의 현재 셋업 상태에서는 전부 green이다(개별 파일에
+기본(non-slow) 스위트: **47 passed, 5 deselected**. `@slow`(무거운 모델 실가중치 필요)까지
+포함한 전체 52개도 이 저장소의 현재 셋업 상태에서는 전부 green이다(개별 파일에
 `-o addopts=""`를 주면 마커 제외 없이 실행됨, 예: `pytest tests/test_adapters_availability.py
 -v -o addopts=""`).
 
@@ -317,5 +320,3 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 conda run -n depthref pytest -v
   명시한 단일 지점만 고치면 되도록 설계돼 있다.
 - **`export_onnx.py --check`가 쓰는 `onnx` 패키지는 아직 설치돼 있지 않다** — 실제 export
   전에 대상 env에 `pip install onnx`가 필요하다(`docs/orin_deploy.md` §9 체크리스트).
-- **실 로봇용 캘리브레이션 녹화 CLI가 없다** — `record.py`는 `calib_head/`를 채우지 않는다.
-  자세한 내용과 임시 대안은 §7 참고.
