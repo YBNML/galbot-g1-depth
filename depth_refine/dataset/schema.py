@@ -52,12 +52,19 @@ _UINT16_MAX = np.iinfo(np.uint16).max  # 65535 (= 65.535m) — uint16 payload �
 def depth_m_to_png(depth_m: np.ndarray) -> np.ndarray:
     """float32 미터 깊이 -> uint16 PNG 저장용 payload (mm, 반올림).
 
-    uint16 캐스팅 전에 새니타이즈한다: NaN/±inf는 0(무효)으로 치환하고,
-    음수 및 uint16 표현 상한(65535mm = 65.535m) 초과 값은 [0, 65535mm]
-    범위로 포화(clip)시킨다. 그렇지 않으면 astype(np.uint16)이 조용히
-    랩어라운드한다 (예: -1m -> 64.536m, 70m -> 4.464m로 둔갑, 경고 없음).
+    uint16 캐스팅 전에 새니타이즈한다: NaN은 0(무효)으로 치환하고, 음수와
+    uint16 표현 상한(65535mm = 65.535m) 초과 값(+inf 포함)은 [0, 65535mm]
+    범위로 포화(clip)시킨다 (-inf는 하한 0으로, +inf는 상한으로 포화).
+    그렇지 않으면 astype(np.uint16)이 조용히 랩어라운드한다
+    (예: -1m -> 64.536m, 70m -> 4.464m로 둔갑, 경고 없음).
+
+    float64로 승격 후 곱하는 이유: nan_to_num의 ±inf 기본 치환값(해당
+    dtype 표현 최댓값)을 그대로 float32 상태에서 1000배 하면 곱셈이
+    오버플로되어 RuntimeWarning이 발생한다(최종 clip 결과 자체는 이전에도
+    올바랐음). float64는 그 치환값의 1000배도 여유 있게 표현하므로
+    오버플로 없이 동일한 결과를 낸다.
     """
-    depth_mm = np.nan_to_num(depth_m, nan=0.0) * DEPTH_UNIT_MM
+    depth_mm = np.nan_to_num(depth_m, nan=0.0).astype(np.float64) * DEPTH_UNIT_MM
     depth_mm = np.clip(depth_mm, 0, _UINT16_MAX)
     return depth_mm.round().astype(np.uint16)
 

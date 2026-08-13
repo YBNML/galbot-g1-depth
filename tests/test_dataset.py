@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from depth_refine.common.camera import CameraIntrinsics
 from depth_refine.dataset import schema
@@ -49,3 +50,13 @@ def test_depth_encode_sanitizes_invalid_values():
     assert back[0] == 0.0 and back[1] == 0.0
     assert abs(back[2] - 65.535) < 1e-3   # 65.535m로 포화 (랩어라운드였다면 ~4.464m)
     assert abs(back[3] - 1.234) < 0.0006  # 정상값은 기존처럼 그대로 왕복 (회귀 방지)
+
+def test_depth_encode_inf_saturates_without_overflow_warning():
+    d = np.array([np.inf, -np.inf], np.float32)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)   # 곱셈 오버플로 경고가 나면 즉시 실패
+        png = schema.depth_m_to_png(d)
+    assert png.tolist() == [65535, 0]     # +inf -> 상한 포화, -inf -> 하한(무효) 포화
+    back = schema.depth_png_to_m(png)
+    assert abs(back[0] - 65.535) < 1e-3
+    assert back[1] == 0.0
