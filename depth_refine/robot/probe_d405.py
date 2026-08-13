@@ -74,8 +74,16 @@ def main() -> int:
               "종료한 뒤 재시도하세요.")
         return 1
 
+    # start() 성공 후에는(장치를 실제로 열었으므로) 실패하더라도 반드시 stop()으로
+    # 반납해야 한다 — wait_for_frames()도 RuntimeError를 낼 수 있어(타임아웃 등)
+    # start()와 동일한 "장치 점유 가능성" 처리를 적용한다.
     try:
         pipeline.wait_for_frames()
+    except RuntimeError as exc:
+        print("[probe_d405] IR 프레임 수신 실패: {}".format(exc))
+        print("  SDK 드라이버가 장치를 점유 중일 가능성 — Galbot SDK/다른 프로세스를 "
+              "종료한 뒤 재시도하세요.")
+        return 1
     finally:
         pipeline.stop()
 
