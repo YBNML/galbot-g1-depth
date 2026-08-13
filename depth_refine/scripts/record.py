@@ -80,6 +80,22 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _validate_args(args: argparse.Namespace) -> Optional[str]:
+    """argparse의 type=float/choices만으로는 못 거르는 값 범위를 실행 전에 미리 검증한다.
+
+    --hz<=0은 _record/_record_calib의 `period_s = 1.0 / args.hz`에서 ZeroDivisionError로
+    이어지고(크래시라 그나마 눈에 띔), --countdown<0은 time.sleep()에 음수를 넘겨
+    ValueError로 이어진다 — 둘 다 실제 캡처를 시작하기 전에 미리 걸러 명확한 한국어
+    [error] 메시지로 안내한다. --countdown 0은 유효(대기 없이 즉시 캡처, calib 모드
+    테스트에서도 사용)하므로 하한을 0 미만으로만 잡는다.
+    """
+    if args.hz <= 0:
+        return "--hz는 0보다 커야 합니다 (got {})".format(args.hz)
+    if args.countdown < 0:
+        return "--countdown은 0 이상이어야 합니다 (got {})".format(args.countdown)
+    return None
+
+
 def _build_source(args: argparse.Namespace) -> FrameSource:
     if args.source == "mock":
         return MockSource(_MOCK_INTRINSICS, scene="wrist")
@@ -193,12 +209,31 @@ def _record_calib(source: FrameSource, writer: DatasetWriter, args: argparse.Nam
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parse_args(argv)
+
+    problem = _validate_args(args)
+    if problem is not None:
+        print("[error] {}".format(problem))
+        return 1
+
     source = _build_source(args)
 
     try:
         if args.dry_run:
             _dry_run(source, args)
             return 0
+
+        # DatasetWriter는 프레임 인덱스를 항상 0부터 새로 매기며(PNG는 인덱스로 덮어쓰기)
+        # timestamps.csv에는 행을 append만 한다 — 즉 이미 내용이 있는 --out 폴더에 다시
+        # 쓰면 PNG는 새 프레임으로 덮어써지는데 timestamps.csv에는 이전 실행분 행이 남아
+        # 중복되어, 이후 위치 기반(row-order) 인덱싱을 하는 소비자(stereo_head.py 등)가
+        # 새 프레임을 이전 실행의 타임스탬프와 잘못 짝짓는다 — 크래시 없이 조용히 틀린
+        # 결과를 만들어내므로(§4 포맷 재개(resume) 미지원) 여기서 미리 막는다. 빈 폴더(또는
+        # 아직 없는 경로)는 정상 케이스라 통과시킨다.
+        out_dir = Path(args.out)
+        if out_dir.exists() and out_dir.is_dir() and any(out_dir.iterdir()):
+            print("[error] 출력 폴더가 비어있지 않습니다: {} — 새 폴더를 지정하거나 비운 뒤 "
+                  "다시 실행하세요 (기존 녹화에 이어쓰기는 지원되지 않습니다)".format(args.out))
+            return 1
 
         writer = DatasetWriter(args.out, source=args.source)
         try:
