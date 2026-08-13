@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "depth-refine"
+version = "0.1.0"
+requires-python = ">=3.8"
+dependencies = ["numpy", "opencv-python", "pyyaml"]
+
+[tool.setuptools.packages.find]
+include = ["depth_refine*"]
+
+[tool.pytest.ini_options]
+markers = ["slow: 무거운 모델 필요 (기본 제외)"]
+addopts = "-m 'not slow'"

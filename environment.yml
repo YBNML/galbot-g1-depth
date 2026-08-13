@@ -1,0 +1,14 @@
+name: depthref
+channels: [defaults]
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - numpy
+      - opencv-python
+      - opencv-contrib-python
+      - pytest
+      - pyyaml
+      - transformers
+      - pillow
+      # torch는 --index-url https://download.pytorch.org/whl/cu121 로 별도 설치
