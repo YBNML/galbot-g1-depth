@@ -51,7 +51,10 @@ def main(argv: Optional[List[str]] = None) -> None:
                               gt_depth_left_m=pair.gt_depth_left_m)
 
     # ---- calib_head: 합성 체커보드 세션 (head와 동일 intrinsics·baseline) ----
-    for rvec, tvec in default_poses(args.calib_poses):
+    # default_poses에도 실제 baseline/intrinsics를 그대로 넘긴다 — 그렇지 않으면 포즈의
+    # "카메라 안에 들어오는지" 검증이 기본 baseline(0.06)만 가정해, --baseline이 그보다
+    # 크면 오른쪽 카메라에서 보드가 프레임을 벗어나는 포즈가 섞여 나올 수 있다.
+    for rvec, tvec in default_poses(args.calib_poses, baseline_m=args.baseline, intr=intr_l):
         left, right = render_board_pair(intr_l, intr_r, args.baseline, rvec, tvec)
         writer.add_calib_pair(left, right)
 

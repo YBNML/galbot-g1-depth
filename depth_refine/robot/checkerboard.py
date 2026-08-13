@@ -13,7 +13,7 @@ Z=0(보드는 자신의 평면 위에 놓임). 왼쪽 카메라 프레임(=월�
 (M을 src->dst로 주면 내부적으로 역행렬을 취해 픽셀을 가져온다).
 """
 from __future__ import annotations
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -24,12 +24,19 @@ SQUARE_PX = 60          # 정사각형 한 칸당 렌더 픽셀
 MARGIN_SQUARES = 1      # 외곽 흰 여백(quiet zone), 칸 단위 — findChessboardCornersSB 요구사항
 BACKGROUND_GRAY = 128   # 보드 밖 배경(회색)
 
-# default_poses()가 "카메라 안에 다 들어오는지" 안전마진을 계산할 때 가정하는 기준값.
-# 이 프로젝트 전체(테스트·CLI 기본값)에서 실제로 쓰이는 조합과 동일 — render_board_pair
-# 자체는 임의의 intr/baseline을 받지만, default_poses(n)는 intr/baseline 인자가 없으므로
-# (브리프의 시그니처 그대로) 이 기준값에 대해서만 "카메라 안" 안전성을 보장한다.
-_REF_INTR = CameraIntrinsics(600.0, 600.0, 320.0, 240.0, 640, 480)
-_REF_BASELINE_M = 0.06
+# render_board_pair의 board_size/square_m 기본값이자, default_poses()의 "카메라 안에 다
+# 들어오는지" 검증에도 쓰는 단일 출처(중복 정의 방지).
+DEFAULT_BOARD_SIZE = (9, 6)
+DEFAULT_SQUARE_M = 0.025
+
+# default_poses()의 intr/baseline_m 기본값. 호출부가 명시적으로 넘기지 않으면(=CLI 기본값과
+# 동일한) 이 값 기준으로 "카메라 안" 안전성을 검증한다 — 실제 렌더링에 쓰일 intr/baseline_m을
+# 알고 있는 호출부(make_mock_dataset.py 등)는 반드시 그 값을 그대로 넘겨야 한다. 넘기지 않고
+# 기본값과 다른 baseline_m/intr으로 render_board_pair를 호출하면, 안전마진 검증이 실제 렌더
+# 지오메트리와 어긋나 보드가 프레임 밖으로 나갈 수 있다(오른쪽 카메라가 특히 취약 — baseline이
+# 클수록 오른쪽 카메라에서 보드가 더 크게 좌측으로 밀려난다).
+_DEFAULT_INTR = CameraIntrinsics(600.0, 600.0, 320.0, 240.0, 640, 480)
+_DEFAULT_BASELINE_M = 0.06
 _FRAME_MARGIN_PX = 20.0  # 이미지 경계에서 여유를 두는 안전 버퍼
 
 
@@ -101,7 +108,8 @@ def _rotation_from_euler_deg(rx_deg: float, ry_deg: float, rz_deg: float) -> np.
 
 def render_board_pair(intr_l: CameraIntrinsics, intr_r: CameraIntrinsics, baseline_m: float,
                        rvec: np.ndarray, tvec: np.ndarray,
-                       board_size: Tuple[int, int] = (9, 6), square_m: float = 0.025
+                       board_size: Tuple[int, int] = DEFAULT_BOARD_SIZE,
+                       square_m: float = DEFAULT_SQUARE_M
                        ) -> Tuple[np.ndarray, np.ndarray]:
     """체커보드를 좌/우 카메라 각각에 호모그래피로 투영해 렌더링 (회색 배경, BGR uint8).
 
@@ -146,33 +154,45 @@ def _projected_bbox(K: np.ndarray, c: np.ndarray, R: np.ndarray, t: np.ndarray,
 
 
 def _fits_both_cameras(R: np.ndarray, t: np.ndarray, board_size: Tuple[int, int],
-                        square_m: float) -> bool:
-    K = _REF_INTR.K
-    for cam_x in (0.0, _REF_BASELINE_M):
+                        square_m: float, intr: CameraIntrinsics, baseline_m: float) -> bool:
+    """board_size/square_m 보드가 intr·baseline_m(왼쪽=0, 오른쪽=+baseline_m) 두 카메라 모두에
+    (마진 포함, _FRAME_MARGIN_PX 여유로) 온전히 들어오는지 실제 투영으로 검증."""
+    K = intr.K
+    for cam_x in (0.0, baseline_m):
         c = np.array([cam_x, 0.0, 0.0])
         u0, u1, v0, v1, zmin = _projected_bbox(K, c, R, t, board_size, square_m)
         if zmin <= 0.05:
             return False
-        if u0 < _FRAME_MARGIN_PX or u1 > _REF_INTR.width - _FRAME_MARGIN_PX:
+        if u0 < _FRAME_MARGIN_PX or u1 > intr.width - _FRAME_MARGIN_PX:
             return False
-        if v0 < _FRAME_MARGIN_PX or v1 > _REF_INTR.height - _FRAME_MARGIN_PX:
+        if v0 < _FRAME_MARGIN_PX or v1 > intr.height - _FRAME_MARGIN_PX:
             return False
     return True
 
 
-def default_poses(n: int = 15) -> List[Tuple[np.ndarray, np.ndarray]]:
+def default_poses(n: int = 15, baseline_m: float = _DEFAULT_BASELINE_M,
+                   intr: Optional[CameraIntrinsics] = None
+                   ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """결정론적으로 다양한 (rvec, tvec) n개 — z 0.5~1.2m, x/y ±0.25m, 기울기 ±25도(x/y축 혼합) 조합.
 
     골든 비율 기반 저불일치(low-discrepancy) 수열로 (z, x, y, rx, ry, rz)를 결정론적으로
     분산시켜 포즈 다양성(캘리브레이션에 중요 — 평행이동만으로는 초점거리·왜곡이 코드 X)을
-    확보한다. 각 후보는 기준 내부파라미터(_REF_INTR)·기준 베이스라인(_REF_BASELINE_M)에서
-    좌·우 카메라 모두에 (마진 포함) 온전히 들어오는지 실제로 투영해 검증하고, 들어오지
-    않으면 평행이동·기울기 진폭을 함께 축소해가며 재시도한다(중앙·무기울기는 이 z범위에서
-    항상 두 카메라 모두에 들어오므로 — half-extent(0.15,0.1125m) < z=0.5 기준 화각의 절반 —
-    이 축소는 유한 스텝 안에 반드시 성공한다).
+    확보한다. 각 후보는 (intr, baseline_m)로 정의되는 실제 좌·우 카메라 — intr 생략 시
+    _DEFAULT_INTR, baseline_m 생략 시 _DEFAULT_BASELINE_M(=CLI 기본값과 동일) — 모두에
+    (마진 포함) 온전히 들어오는지 실제로 투영해 검증하고, 들어오지 않으면 평행이동·기울기
+    진폭을 함께 축소해가며 재시도한다(중앙·무기울기는 이 z범위에서 이 intr 기준 항상 두
+    카메라 모두에 들어오므로 — half-extent(0.15,0.1125m) < z=0.5 기준 화각의 절반 — 이 축소는
+    유한 스텝 안에 반드시 성공한다).
+
+    render_board_pair를 실제로 호출할 baseline_m/intr을 아는 호출부는 반드시 여기에도 같은
+    값을 넘겨야 한다 — 그렇지 않으면(예: 기본 0.06 기준으로 검증해놓고 실제로는 훨씬 큰
+    baseline으로 렌더링) 안전마진 검증이 실제 렌더 지오메트리와 어긋나 오른쪽 카메라에서
+    보드가 프레임을 벗어날 수 있다.
     """
     if n <= 0:
         return []
+
+    ref_intr = intr if intr is not None else _DEFAULT_INTR
 
     golden = 0.6180339887498949  # 5**0.5/2 - 0.5, 저불일치 수열의 표준 증분
     poses: List[Tuple[np.ndarray, np.ndarray]] = []
@@ -198,7 +218,7 @@ def default_poses(n: int = 15) -> List[Tuple[np.ndarray, np.ndarray]]:
         R = _rotation_from_euler_deg(rx_deg, ry_deg, rz_deg)
         t = np.array([x_amp * x_dir, y_amp * y_dir, z])
         for _ in range(60):
-            if _fits_both_cameras(R, t, (9, 6), 0.025):
+            if _fits_both_cameras(R, t, DEFAULT_BOARD_SIZE, DEFAULT_SQUARE_M, ref_intr, baseline_m):
                 break
             scale *= 0.85
             R = _rotation_from_euler_deg(rx_deg * scale, ry_deg * scale, rz_deg * scale)
