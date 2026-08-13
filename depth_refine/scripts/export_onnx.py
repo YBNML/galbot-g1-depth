@@ -176,8 +176,10 @@ def _run_check(out_path: Path) -> int:
 
     onnx/onnxruntime는 depthref env의 기본 의존성이 아니다(environment.yml에 없음, 실측
     확인) -- 미설치가 정상 상태일 수 있어 그 경우는 실패가 아니라 안내 후 스킵한다. onnx가
-    설치돼 있는데 checker가 실패하거나 opset이 상한을 넘는 경우만 진짜 오류(exit 1)로
-    취급한다.
+    설치돼 있는데 로드/검증 자체가 실패하거나(손상된 파일, protobuf 디코드 에러 등) opset이
+    상한을 넘는 경우만 진짜 오류(exit 1)로 취급한다 -- ``onnx.load``/``onnx.checker.
+    check_model``은 원시 예외를 던지므로(리뷰 지적: 이 파일의 다른 실패 경로와 달리 여기만
+    가드가 없었음) 이 파일 전역의 ``[error]`` 패턴으로 감싼다.
     """
     try:
         import onnx
@@ -185,8 +187,13 @@ def _run_check(out_path: Path) -> int:
         print("[export_onnx] --check: onnx 패키지 미설치 -- 검증을 건너뜀 (pip install onnx)")
         return 0
 
-    model = onnx.load(str(out_path))
-    onnx.checker.check_model(model)
+    try:
+        model = onnx.load(str(out_path))
+        onnx.checker.check_model(model)
+    except Exception as e:
+        print("[error] ONNX 검증 실패: {}: {}".format(type(e).__name__, e))
+        return 1
+
     opset_versions = [imp.version for imp in model.opset_import if not imp.domain]
     opset_str = ", ".join(
         "{}:{}".format(imp.domain or "ai.onnx", imp.version) for imp in model.opset_import)
