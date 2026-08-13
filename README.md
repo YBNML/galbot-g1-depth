@@ -280,7 +280,7 @@ YBNML_Depth_Refinement/
 ├── third_party/                     # git-ignored (README.md만 추적) — setup_models.sh 산출물
 ├── weights/                         # git-ignored — setup_models.sh 산출물
 ├── datasets/, reports/              # git-ignored — 실행 결과물 (§4, §5)
-├── tests/                           # pytest (합성 GT 기반, 52개 — §11)
+├── tests/                           # pytest (합성 GT 기반, 54개 — §11, docs/TESTING.md)
 ├── environment.yml
 └── pyproject.toml
 ```
@@ -291,10 +291,14 @@ YBNML_Depth_Refinement/
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 conda run -n depthref pytest -v
 ```
 
-기본(non-slow) 스위트: **47 passed, 5 deselected**. `@slow`(무거운 모델 실가중치 필요)까지
-포함한 전체 52개도 이 저장소의 현재 셋업 상태에서는 전부 green이다(개별 파일에
+기본(non-slow) 스위트: **49 passed, 5 deselected**. `@slow`(무거운 모델 실가중치 필요)까지
+포함한 전체 54개도 이 저장소의 현재 셋업 상태에서는 전부 green이다(개별 파일에
 `-o addopts=""`를 주면 마커 제외 없이 실행됨, 예: `pytest tests/test_adapters_availability.py
 -v -o addopts=""`).
+
+계층별 테스트 방법(기본 스위트·`@slow` 실모델·E2E mock 파이프라인·로봇 실기·Orin 배포)과
+각 단계의 **합격 판정 기준**, 테스트 파일별 검증 내용, 트러블슈팅은
+[`docs/TESTING.md`](docs/TESTING.md)에 정리돼 있다.
 
 ## 12. 알려진 이슈
 
@@ -318,5 +322,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 conda run -n depthref pytest -v
 - **`galbot_source.py`는 문서 기반으로 작성됐고 실물 로봇에서 실행된 적이 없다.** §7의
   `record.py --dry-run` 절차로 로봇에서 최초 검증해야 하며, 불일치는 모듈 docstring이
   명시한 단일 지점만 고치면 되도록 설계돼 있다.
-- **`export_onnx.py --check`가 쓰는 `onnx` 패키지는 아직 설치돼 있지 않다** — 실제 export
-  전에 대상 env에 `pip install onnx`가 필요하다(`docs/orin_deploy.md` §9 체크리스트).
+- **`export_onnx.py`는 실측 검증 완료** — `onnx`/`onnxruntime`은 세 env에 설치돼 있고
+  (2026-08-14, 핀 불변 확인), `fast_fs`(opset 17, ≈82.3MB)와 `foundation_stereo`(opset 16,
+  ≈121.6MB) 모두 export + `onnx.checker` + onnxruntime 더미 추론까지 성공했다 — 명령·출력
+  전문은 `docs/orin_deploy.md` §9. 새로 env를 만들면 `pip install onnx onnxruntime`부터.

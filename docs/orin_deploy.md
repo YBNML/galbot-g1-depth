@@ -172,8 +172,8 @@ python -m depth_refine.scripts.export_onnx \
 - `foundation_stereo`는 자체 스크립트가 `--valid_iters` 기본값 16을 쓴다(README 권장,
   6GB급 VRAM에서 32(기본)보다 축소).
 - `--check`는 onnx/onnxruntime가 설치돼 있으면 `onnx.checker` + 더미 추론 1회를 수행한다.
-  둘 다 현재 `depthref`/`fs_stereo`/`ffs_stereo` env 어디에도 설치돼 있지 않음을 확인했다
-  (§9) — 실제로 `--check`를 쓰려면 먼저 `pip install onnx onnxruntime`이 필요하다.
+  세 env(`depthref`/`fs_stereo`/`ffs_stereo`) 모두 §9에서 설치를 마쳤고(핀 불변 확인),
+  두 모델 export + `--check`까지 실측 성공했다 — 명령·출력 전문은 §9 참고.
 
 onnx 파일이 만들어지면 Orin으로 복사한다:
 
