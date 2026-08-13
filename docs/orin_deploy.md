@@ -136,11 +136,13 @@ python3 -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
 **torchvision 주의**: NVIDIA는 JetPack 5용 torchvision 프리빌드 wheel을 배포하지 않는다
-(JetPack 6부터 배포) — 필요하면 소스 빌드해야 한다(수십 분 소요). `core/foundation_stereo.py`가
-torchvision을 참조하므로(두 레포 모두 PC측 conda env에 `torchvision==0.19.1`/`0.21.0`을 명시
-설치함, `scripts_dev/setup_models.sh` 확인) 위 1번 이유(참조 스크립트 재사용)로 torch를 설치할
-때는 torchvision도 함께 필요할 가능성이 높다. **순수 TensorRT 엔진 추론만 필요하면 torch/
-torchvision 설치 자체를 생략**하는 것도 유효한 선택이다(§8 런타임 통합 노트 참고).
+(JetPack 6부터 배포) — 필요하면 소스 빌드해야 한다(수십 분 소요). `scripts_dev/setup_models.sh`가
+PC측 `fs_stereo`/`ffs_stereo` conda env에 `torchvision==0.19.1`/`0.21.0`을 명시적으로 설치하는
+것으로 보아(FoundationStereo의 `core/foundation_stereo.py`는 실제로 torchvision을 import한다 —
+소스로 확인; Fast-FoundationStereo의 동일 파일명 모듈 자체는 import하지 않지만 레포 다른 곳에서
+쓰는 것으로 보인다) 위 1번 이유(참조 스크립트 재사용)로 torch를 설치할 때는 torchvision도
+함께 필요할 가능성이 높다. **순수 TensorRT 엔진 추론만 필요하면 torch/torchvision 설치 자체를
+생략**하는 것도 유효한 선택이다(§8 런타임 통합 노트 참고).
 
 ---
 
@@ -200,9 +202,10 @@ Orin 위에서(JetPack이 `trtexec`를 `/usr/src/tensorrt/bin/trtexec`에 이미
   직접 붙이면 `trtexec`의 파서가 그 3글자 단위를 인식하지 못해 엉뚱하게(예: 수백 배
   작은 값으로) 해석하는 사례가 보고돼 있으니 숫자만 쓸 것. 이 옵션은 TensorRT 8.4+에서
   구식 `--workspace=N` 플래그를 대체한 것이다(8.5도 신식 플래그 사용).
-- **고정 입력 크기 주의**: `make_single_onnx.py`/`make_onnx.py` 둘 다 동적 축(dynamic_axes)
-  없이 export하므로(FoundationStereo만 배치 축이 dynamic, H/W는 고정) 엔진도 §4에서 정한
-  H×W로 고정된다 — 실행 시 다른 해상도의 이미지를 넣으면 실패하거나(shape mismatch)
+- **고정 입력 크기 주의**: `make_single_onnx.py`(Fast-FS)는 어떤 축도 dynamic으로 열지 않고
+  완전히 고정된 shape로 export하고, `make_onnx.py`(FoundationStereo)는 배치(batch) 축만
+  dynamic으로 열어 둔 채 높이/너비는 고정한다 — 결과적으로 두 경우 다 엔진의 H×W는 §4에서
+  정한 값으로 고정된다. 실행 시 다른 해상도의 이미지를 넣으면 실패하거나(shape mismatch)
   트리밍/리사이즈가 필요하다. 여러 해상도가 필요하면 해상도별로 별도 onnx→engine을
   만들거나, `--minShapes`/`--optShapes`/`--maxShapes`로 동적 프로파일을 만들어야 한다(이
   경우 export 스크립트 쪽에서 `dynamic_axes`도 H/W에 대해 열어줘야 하므로 레포 스크립트
