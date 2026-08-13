@@ -27,14 +27,14 @@ _PLANE_COLOR = np.array([90.0, 110.0, 120.0])   # 갈색 계열 테이블
 _SPHERE_COLOR = np.array([60.0, 60.0, 200.0])   # 붉은 공
 _BOX_COLOR = np.array([200.0, 120.0, 40.0])     # 파란 상자
 
-_CHECKER_PERIOD_M = 0.04  # 체커 무늬 주기 (월드 미터 단위)
+_TEXTURE_CELL_M = 0.06  # 유사난수 텍스처 셀 크기 (월드 미터 단위) — _texture_factor 참고
 _EPS = 1e-9
 
 
 class MockScene:
     """기울어진 테이블 평면 + 구 1 + AABB 박스 1로 이루어진 합성 씬.
 
-    scene="head": 물체 0.8~2.0m 대역. scene="wrist": 0.15~0.45m 대역
+    scene="head": 물체 0.8~2.2m 대역. scene="wrist": 0.15~0.45m 대역
     (좌표·크기만 스케일, 씬 구조는 동일).
     """
 
@@ -56,9 +56,18 @@ class MockScene:
             self.box_min = np.array([0.30, -0.10, 1.3])
             self.box_max = np.array([0.65, 0.25, 1.7])
             # 평면: 배경 전체를 덮는 "테이블" — n_x=0이라 baseline 이동에 무관하게
-            # t가 항상 양수·유효범위 (좌우 카메라 모두 안전)
-            self._plane_p0 = np.array([0.0, 0.0, 3.0])
-            self._plane_n = np.array([0.0, -0.35, -1.0])
+            # t가 항상 양수·유효범위 (좌우 카메라 모두 안전). 깊이는 화면 하단
+            # ~1.83m ~ 상단 ~2.21m로 완만히 기울어(박스 최대깊이 1.7m와 12cm+ 여유를
+            # 두어 겹치지 않음), 클래스 독스트링의 head 장면 0.8~2.2m 대역을 지킨다.
+            # 원래는 z0=3.0/기울기 0.35로 최대 3.6m까지 물러났는데, disparity로부터
+            # 복원한 깊이오차는 fx·baseline/depth²로 깊이의 제곱에 비례해 증폭되는
+            # 데다(SGBM 등 상관기반 스테레오는 서브픽셀 추정에 픽셀 격자로 편향되는
+            # 고유 오차 — 텍스처 품질과 무관하게 존재) 그 평면이 화면 픽셀의 대부분을
+            # 차지해, sgbm 통합 테스트(Task 11)에서 median 깊이오차가 임계값(3cm)을
+            # 텍스처를 아무리 개선해도 벗어나지 못했다 — depth 대역 자체를 좁힌 것이
+            # 근본 해결책.
+            self._plane_p0 = np.array([0.0, 0.0, 2.0])
+            self._plane_n = np.array([0.0, -0.20, -1.0])
         else:  # wrist
             self.sphere_center = (0.0, 0.0, 0.30)
             self.sphere_radius = 0.045
@@ -147,14 +156,24 @@ class MockScene:
         return face_normals[face]
 
     def _texture_factor(self, p: np.ndarray) -> np.ndarray:
-        """checker + 고주파 sin — 월드좌표에만 의존 (좌우 카메라 색상 일관성의 핵심)."""
+        """월드좌표 격자 셀 기반 유사난수 밝기 배율 ∈[0,1). 월드좌표에만 의존하므로
+        좌우 카메라에서 같은 3D점은 항상 같은 셀에 해싱되어 같은 밝기를 낸다(스테레오
+        색상 일관성의 핵심 — 이전 checker/sine 버전과 동일한 성질을 유지).
+
+        이전 버전(checker + 고주파 sin)은 전역적으로 규칙 반복되는 패턴이라 SGBM류
+        블록매칭 스테레오에서 "주기 배수만큼 어긋난" 앨리어싱 오매칭을 유발했다 —
+        특히 배경 평면처럼 넓고 먼 표면에서 두드러져(한 화면에 텍스처 주기가 여러 번
+        반복) median 깊이오차가 크게 뛰었다(Task 11 sgbm 테스트에서 발견, 원인 진단
+        후 대체). 셀마다 서로 무관한 해시값을 쓰는 이 버전은 전역 주기성이 없어 이
+        앨리어싱이 원천적으로 발생하지 않는다 — `sin(...)*큰 상수`의 소수부를 취하는
+        표준 절차적 해시 트릭(GPU 셰이더의 `rand(vec)` 관용구와 동일한 아이디어).
+        """
         x, y, z = p[..., 0], p[..., 1], p[..., 2]
-        checker = (np.floor(x / _CHECKER_PERIOD_M) + np.floor(y / _CHECKER_PERIOD_M)
-                   + np.floor(z / _CHECKER_PERIOD_M))
-        checker_term = 0.75 + 0.25 * np.mod(checker, 2.0)
-        hf = 0.5 + 0.5 * (np.sin(x * 250.0) * np.sin(y * 250.0 + 1.3) * np.sin(z * 250.0 + 2.7))
-        hf_term = 0.85 + 0.15 * hf
-        return checker_term * hf_term
+        cx = np.floor(x / _TEXTURE_CELL_M)
+        cy = np.floor(y / _TEXTURE_CELL_M)
+        cz = np.floor(z / _TEXTURE_CELL_M)
+        h = np.sin(cx * 127.1 + cy * 311.7 + cz * 74.7) * 43758.5453123
+        return h - np.floor(h)
 
     def _shade(self, p: np.ndarray, obj_idx: np.ndarray, valid: np.ndarray) -> np.ndarray:
         h, w = obj_idx.shape
