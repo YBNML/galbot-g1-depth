@@ -9,6 +9,8 @@ dependencies:
       - opencv-contrib-python
       - pytest
       - pyyaml
-      - transformers
+      - transformers==4.46.3   # torch 2.3.1과 호환 고정 — unpinned 최신(5.x)은
+                                 # torch>=2.5 요구로 PyTorch 통합을 비활성화해
+                                 # depth-estimation 파이프라인 로드가 실패함
       - pillow
       # torch는 --index-url https://download.pytorch.org/whl/cu121 로 별도 설치
