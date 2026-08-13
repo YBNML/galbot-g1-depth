@@ -10,8 +10,8 @@ pyrealsense2는 이 개발 PC에는 설치되어 있지 않으므로 모듈 최�
 main() 안에서 지연 임포트한다 — 그래야 SDK 없이도 이 파일을 항상 import/실행할
 수 있다(실패 시 설치 안내 후 exit 3).
 
-exit code: 0=IR 직접 접근 성공, 1=장치는 찾았으나 스트림 open 실패(SDK 점유 등),
-           2=RealSense 장치 없음, 3=pyrealsense2 미설치.
+exit code: 0=IR 직접 접근 성공, 1=D405는 찾았으나 스트림 open/프레임 수신 실패(SDK 점유 등),
+           2=RealSense 장치가 아예 없거나 있어도 그중 D405가 없음, 3=pyrealsense2 미설치.
 """
 from __future__ import annotations
 
@@ -56,13 +56,26 @@ def main() -> int:
         return 2
 
     print("[probe_d405] 발견된 장치 {}개:".format(len(devices)))
+    d405_serial = None
     for dev in devices:
         name = dev.get_info(rs.camera_info.name)
         serial = dev.get_info(rs.camera_info.serial_number)
         print("  - {} (serial={})".format(name, serial))
+        if d405_serial is None and "D405" in name:
+            d405_serial = serial
+
+    # 이 스크립트는 D405 전용 probe다 — 다른 RealSense 장치(D435 등)가 함께 꽂혀
+    # 있으면 그 장치를 잘못 열어 결과를 D405 것으로 오귀속할 수 있으므로, D405 존재를
+    # 먼저 확인하고 아래에서도 config.enable_device(serial)로 그 장치를 못박는다.
+    if d405_serial is None:
+        print("[probe_d405] 위 장치들 중 D405가 없습니다 — 이 스크립트는 D405 전용입니다.")
+        return 2
+
+    print("[probe_d405] D405(serial={}) 대상으로 IR 스트림을 시험합니다.".format(d405_serial))
 
     pipeline = rs.pipeline()
     config = rs.config()
+    config.enable_device(d405_serial)
     config.enable_stream(rs.stream.infrared, 1, rs.format.y8)
     config.enable_stream(rs.stream.infrared, 2, rs.format.y8)
 
@@ -74,9 +87,12 @@ def main() -> int:
               "종료한 뒤 재시도하세요.")
         return 1
 
-    # start() 성공 후에는(장치를 실제로 열었으므로) 실패하더라도 반드시 stop()으로
-    # 반납해야 한다 — wait_for_frames()도 RuntimeError를 낼 수 있어(타임아웃 등)
-    # start()와 동일한 "장치 점유 가능성" 처리를 적용한다.
+    # start() 성공 후에는(장치를 실제로 열었으므로) 무엇이 일어나든 반드시 stop()으로
+    # 반납해야 한다. profile 조회(intrinsics/baseline)는 stop() 이후엔 결과가 보장되지
+    # 않으므로 파이프라인이 살아있는 이 try 블록 안(else 절 = wait_for_frames 성공 시)
+    # 에서 전부 끝내고, stop()은 성공/실패 어느 쪽이든 finally에서 마지막에 한 번만
+    # 호출한다 — wait_for_frames()도 RuntimeError를 낼 수 있어(타임아웃 등) start()와
+    # 동일한 "장치 점유 가능성" 처리를 적용한다.
     try:
         pipeline.wait_for_frames()
     except RuntimeError as exc:
@@ -84,11 +100,12 @@ def main() -> int:
         print("  SDK 드라이버가 장치를 점유 중일 가능성 — Galbot SDK/다른 프로세스를 "
               "종료한 뒤 재시도하세요.")
         return 1
+    else:
+        print("[probe_d405] 좌우 IR 직접 접근 가능 — 손목도 학습 스테레오 사용 가능")
+        _print_profile_info(rs, profile)
     finally:
         pipeline.stop()
 
-    print("[probe_d405] 좌우 IR 직접 접근 가능 — 손목도 학습 스테레오 사용 가능")
-    _print_profile_info(rs, profile)
     return 0
 
 

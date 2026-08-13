@@ -7,9 +7,18 @@ SDK가 없는 개발 PC에서도 이 파일을 import하는 것 자체는 항상
 
 이 파일의 모든 SDK 호출은 공식 문서 기반으로 작성했고 아직 로봇에서 실행해보지
 못했다. 실 SDK 메시지 필드명은 로봇에서 record.py --dry-run으로 1회 검증 필요 —
-어긋나는 부분이 있으면 아래 `_decode_rgb`/`_decode_depth`/`_to_intrinsics`/
-`_synced_pair`/`_acquire_robot` 중 해당 메서드 하나만 고치면 된다(온-로봇 단일 수정
-지점으로 격리한 설계).
+불일치는 두 종류로 나뉘고 각각 단일 수정 지점이 있다:
+
+(1) SDK **메서드 이름 자체**가 다르면 — `_acquire_robot`(GalbotRobot 획득) /
+    `_sdk_rgb`(get_rgb_data) / `_sdk_depth`(get_depth_data) /
+    `_sdk_intrinsic`(get_camera_intrinsic) / `_sdk_extrinsic`(get_sensor_extrinsic) /
+    `_synced_pair`(get_synced_observation) 중 해당 메서드 하나만 고치면 된다. 이
+    5+1개가 `self._robot`/`self._sdk`에 직접 접근하는 **유일한** 지점이다 — 예를 들어
+    `get_wrist_frame()`과 dry-run 전용 `get_wrist_raw()`는 둘 다 `_sdk_rgb`/
+    `_sdk_depth`를 거치고, `get_wrist_frame()`과 `head_intrinsics()`는 둘 다
+    `_sdk_intrinsic`을 거친다 — 어느 쪽에서 고치든 나머지 호출부에 자동 반영된다.
+(2) SDK가 돌려주는 **메시지 내부 필드명**(header/data/fx/fy/...)이 다르면 —
+    `_decode_rgb`/`_decode_depth`/`_to_intrinsics` 중 해당 메서드만 고치면 된다.
 """
 from __future__ import annotations
 
@@ -90,6 +99,23 @@ class GalbotSource(FrameSource):
                 "initialize() 절차를 로봇에서 확인하세요): {}".format(exc)
             ) from exc
 
+    def _sdk_rgb(self, sensor_type: Any) -> Any:
+        """robot.get_rgb_data() 호출 단일 지점 — 손목·헤드 진단(get_wrist_raw)이 모두
+        이 메서드를 거친다."""
+        return self._robot.get_rgb_data(sensor_type)
+
+    def _sdk_depth(self, sensor_type: Any) -> Any:
+        """robot.get_depth_data() 호출 단일 지점 (get_wrist_frame/get_wrist_raw 공용)."""
+        return self._robot.get_depth_data(sensor_type)
+
+    def _sdk_intrinsic(self, sensor_type: Any) -> Any:
+        """robot.get_camera_intrinsic() 호출 단일 지점 (손목·헤드 공용)."""
+        return self._robot.get_camera_intrinsic(sensor_type)
+
+    def _sdk_extrinsic(self, sensor_type: Any) -> Any:
+        """robot.get_sensor_extrinsic() 호출 단일 지점 -> (pose_vec, timestamp_ns)."""
+        return self._robot.get_sensor_extrinsic(sensor_type)
+
     def _decode_rgb(self, msg: Any) -> np.ndarray:
         """압축 RGB 메시지(msg['data']) -> BGR uint8 이미지 (cv2 관례, 이 저장소 전체와 일관)."""
         data = _msg_field(msg, "data")
@@ -103,8 +129,23 @@ class GalbotSource(FrameSource):
         return img
 
     def _decode_depth(self, msg: Any, width: int, height: int) -> np.ndarray:
-        """16UC1 깊이 메시지(msg['data']) -> float32 미터 깊이 (self._depth_scale로 환산)."""
+        """16UC1 깊이 메시지(msg['data']) -> float32 미터 깊이 (self._depth_scale로 환산).
+
+        reshape 전에 바이트 길이를 먼저 검사한다 — 그냥 reshape하면 해상도 불일치 시
+        raw ValueError(치수 정보만 있고 원인 진단이 안 됨)가 나므로, _decode_rgb와
+        동일한 수준의 명확한 진단 메시지(기대/실제 바이트 수 포함)로 바꾼다.
+        """
         data = _msg_field(msg, "data")
+        expected_bytes = width * height * 2  # uint16 = 2 bytes/px
+        actual_bytes = len(data)
+        if actual_bytes != expected_bytes:
+            raise RuntimeError(
+                "깊이 메시지 디코딩 실패 — intrinsics 기준 {}x{}(uint16) 크기는 {} bytes를 "
+                "기대하지만 msg['data']는 {} bytes입니다 (해상도 불일치 또는 필드명 오류 "
+                "가능성). record.py --dry-run으로 실제 메시지 구조를 확인하세요.".format(
+                    width, height, expected_bytes, actual_bytes
+                )
+            )
         raw = np.frombuffer(data, dtype=np.uint16).reshape(height, width)
         return raw.astype(np.float32) / self._depth_scale
 
@@ -140,9 +181,9 @@ class GalbotSource(FrameSource):
     # ---------------- FrameSource 계약 ----------------
     def get_wrist_frame(self) -> WristFrame:
         rgb_type, depth_type = self._wrist_sensor_types()
-        msg_rgb = self._robot.get_rgb_data(rgb_type)
-        msg_depth = self._robot.get_depth_data(depth_type)
-        intr = self._to_intrinsics(self._robot.get_camera_intrinsic(rgb_type))
+        msg_rgb = self._sdk_rgb(rgb_type)
+        msg_depth = self._sdk_depth(depth_type)
+        intr = self._to_intrinsics(self._sdk_intrinsic(rgb_type))
 
         rgb = self._decode_rgb(msg_rgb)
         depth = self._decode_depth(msg_depth, intr.width, intr.height)
@@ -172,16 +213,16 @@ class GalbotSource(FrameSource):
 
     def head_intrinsics(self) -> Tuple[CameraIntrinsics, CameraIntrinsics]:
         SensorType = self._sdk.SensorType
-        intr_l = self._to_intrinsics(self._robot.get_camera_intrinsic(SensorType.HEAD_LEFT_CAMERA))
-        intr_r = self._to_intrinsics(self._robot.get_camera_intrinsic(SensorType.HEAD_RIGHT_CAMERA))
+        intr_l = self._to_intrinsics(self._sdk_intrinsic(SensorType.HEAD_LEFT_CAMERA))
+        intr_r = self._to_intrinsics(self._sdk_intrinsic(SensorType.HEAD_RIGHT_CAMERA))
         return intr_l, intr_r
 
     def get_head_extrinsics_sdk(self) -> Dict:
         """head/extrinsics_sdk.json 참고값(§4) — record.py가 그대로 저장한다. 스테레오
         캘리브레이션(calibrate_head.py)은 이 값과 무관하게 체커보드로 별도 수행한다."""
         SensorType = self._sdk.SensorType
-        pose_l, ts_l = self._robot.get_sensor_extrinsic(SensorType.HEAD_LEFT_CAMERA)
-        pose_r, ts_r = self._robot.get_sensor_extrinsic(SensorType.HEAD_RIGHT_CAMERA)
+        pose_l, ts_l = self._sdk_extrinsic(SensorType.HEAD_LEFT_CAMERA)
+        pose_r, ts_r = self._sdk_extrinsic(SensorType.HEAD_RIGHT_CAMERA)
         return {
             "left": {"pose_vec": _pose_vec_to_list(pose_l), "ts_ns": int(ts_l)},
             "right": {"pose_vec": _pose_vec_to_list(pose_r), "ts_ns": int(ts_r)},
@@ -192,8 +233,8 @@ class GalbotSource(FrameSource):
         """record.py --dry-run 전용: 디코드하지 않은 원본 SDK 메시지를 반환한다."""
         rgb_type, depth_type = self._wrist_sensor_types()
         return {
-            "rgb": self._robot.get_rgb_data(rgb_type),
-            "depth": self._robot.get_depth_data(depth_type),
+            "rgb": self._sdk_rgb(rgb_type),
+            "depth": self._sdk_depth(depth_type),
         }
 
     def get_head_raw(self) -> Dict[str, Any]:
