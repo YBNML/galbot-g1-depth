@@ -5,6 +5,15 @@
 어디서/어떻게 받는지, VRAM 참고사항, 우리가 고른 통합 전략과 그 이유, 그리고 셋업 스크립트가
 실패한 단계의 수동 복구 절차를 기록한다.
 
+> **업데이트 (Task 16, 2026-08-14)**: 아래 §3/§4에 기록된 FoundationStereo/Fast-FoundationStereo
+> 가중치 다운로드 실패("Too many users..." 쿼터)는 Task 14 시점(2026-08-13)의 실측 기록이다.
+> `scripts_dev/setup_models.sh`를 2026-08-14에 재실행한 결과 쿼터가 해소되어 **두 가중치
+> 모두 정상 다운로드됐고, `@slow` 스모크(`test_foundation_stereo_smoke`/`test_fast_fs_smoke`)도
+> 실가중치로 PASS 확인**(mock head 씬 median depth error: foundation_stereo 7.2mm, fast_fs
+> 5.9mm — 자세한 수치는 저장소 루트 `README.md` §6, 절차는 `task-16-report.md` 참고). 아래의
+> "가중치 MISSING"/"수동 복구" 서술은 재발 시를 위한 절차 기록으로 그대로 남겨둔다 — Google
+> Drive 폴더 배포 특성상 다시 쿼터에 걸릴 수 있다.
+
 셋업: `bash scripts_dev/setup_models.sh` (conda env `depthref`를 먼저 activate). 각 단계는
 실패해도 스크립트를 중단시키지 않고 마지막에 `model | cloned | weights | import-ok` 요약표를
 출력한다. 재실행해도 안전(이미 있으면 스킵, conda env는 torch 버전이 잘못돼 있으면 재설치).
