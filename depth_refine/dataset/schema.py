@@ -46,9 +46,20 @@ def frame_filename(idx: int) -> str:
     return "{:06d}.png".format(idx)
 
 
+_UINT16_MAX = np.iinfo(np.uint16).max  # 65535 (= 65.535m) — uint16 payload 표현 상한
+
+
 def depth_m_to_png(depth_m: np.ndarray) -> np.ndarray:
-    """float32 미터 깊이 -> uint16 PNG 저장용 payload (mm, 반올림)."""
-    return (depth_m * DEPTH_UNIT_MM).round().astype(np.uint16)
+    """float32 미터 깊이 -> uint16 PNG 저장용 payload (mm, 반올림).
+
+    uint16 캐스팅 전에 새니타이즈한다: NaN/±inf는 0(무효)으로 치환하고,
+    음수 및 uint16 표현 상한(65535mm = 65.535m) 초과 값은 [0, 65535mm]
+    범위로 포화(clip)시킨다. 그렇지 않으면 astype(np.uint16)이 조용히
+    랩어라운드한다 (예: -1m -> 64.536m, 70m -> 4.464m로 둔갑, 경고 없음).
+    """
+    depth_mm = np.nan_to_num(depth_m, nan=0.0) * DEPTH_UNIT_MM
+    depth_mm = np.clip(depth_mm, 0, _UINT16_MAX)
+    return depth_mm.round().astype(np.uint16)
 
 
 def depth_png_to_m(depth_png: np.ndarray) -> np.ndarray:

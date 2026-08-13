@@ -1,5 +1,6 @@
 import numpy as np
 from depth_refine.common.camera import CameraIntrinsics
+from depth_refine.dataset import schema
 from depth_refine.dataset.writer import DatasetWriter
 from depth_refine.dataset.reader import DatasetReader
 
@@ -36,3 +37,15 @@ def test_head_roundtrip(tmp_path):
     assert len(list(r.iter_head())) == 1
     assert len(list(r.iter_calib())) == 1
     assert r.head_timestamps()[0].tolist() == [5, 7]
+
+def test_depth_encode_sanitizes_invalid_values():
+    d = np.array([np.nan, -1.0, 70.0, 1.234], np.float32)
+    png = schema.depth_m_to_png(d)
+    assert png.dtype == np.uint16
+    assert png[0] == 0        # NaN -> 무효(0)
+    assert png[1] == 0        # 음수 -> 무효(0)
+    assert png[2] == 65535    # 70m(범위초과) -> uint16 상한 포화 (랩어라운드였다면 4464)
+    back = schema.depth_png_to_m(png)
+    assert back[0] == 0.0 and back[1] == 0.0
+    assert abs(back[2] - 65.535) < 1e-3   # 65.535m로 포화 (랩어라운드였다면 ~4.464m)
+    assert abs(back[3] - 1.234) < 0.0006  # 정상값은 기존처럼 그대로 왕복 (회귀 방지)
