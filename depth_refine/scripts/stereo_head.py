@@ -22,7 +22,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -59,7 +59,7 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _disparity_vmin_vmax(disp: np.ndarray):
+def _disparity_vmin_vmax(disp: np.ndarray) -> Tuple[float, float]:
     """disparity(px) 자체의 1/99 백분위수 — 깊이(m) 패널과 별도 스케일(단위가 다름)."""
     valid = disp > 0.0
     if not np.any(valid):
