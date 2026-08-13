@@ -41,8 +41,28 @@ REGISTRY: Dict[str, Type[DepthRefiner]] = {}
 
 
 def register(cls: Type[DepthRefiner]) -> Type[DepthRefiner]:
-    """``DepthRefiner`` 서브클래스를 ``cls.name`` 키로 REGISTRY에 등록하는 클래스 데코레이터."""
-    REGISTRY[cls.name] = cls
+    """``DepthRefiner`` 서브클래스를 ``cls.name`` 키로 REGISTRY에 등록하는 클래스 데코레이터.
+
+    ``name``이 비어있으면(서브클래스가 지정을 잊은 경우) 즉시 ``ValueError``.
+    이미 다른 클래스가 같은 이름으로 등록되어 있으면 조용히 덮어쓰지 않고
+    ``ValueError`` — 이름 충돌은 한쪽 refiner를 소리없이 접근 불가능하게 만들기
+    때문. 동일 클래스 객체를 같은 이름으로 다시 등록하는 것(모듈 재로드 등)은
+    멱등 — 예외 없이 통과.
+    """
+    name = getattr(cls, "name", "")
+    if not name:
+        raise ValueError(
+            "Cannot register {}: missing or empty 'name' attribute".format(cls.__qualname__)
+        )
+    existing = REGISTRY.get(name)
+    if existing is not None and existing is not cls:
+        raise ValueError(
+            "Refiner name {!r} is already registered to {}; cannot register {} under "
+            "the same name (choose a distinct 'name' or fix the collision)".format(
+                name, existing.__qualname__, cls.__qualname__
+            )
+        )
+    REGISTRY[name] = cls
     return cls
 
 
