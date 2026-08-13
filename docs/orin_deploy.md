@@ -310,46 +310,90 @@ ONNX/FP16 변환이 원본 모델과 실질적으로 같은 disparity를 내는�
 
 ## 9. 현재 상태 / 남은 일 체크리스트
 
-**실제로 실행해 확인한 것** (이 문서 작성 시점, 개발 PC, `~/miniconda3/bin/conda run -n
-depthref ...`):
+**2026-08-14 갱신** (최종 전체브랜치 리뷰 fix 단계, 개발 PC, `~/miniconda3/bin/conda run -n
+depthref ...`): 이전 버전(Task 15 작성 시점, 2026-08-13)엔 가중치가 Google Drive 쿼터로
+막혀 export가 "가중치 없음" exit 1로 즉시 끝났었다. 그 쿼터는 Task 16(2026-08-14)에서
+해소돼 가중치가 이미 도착해 있었고, 이번엔 그 위에서 **export 자체를 실제로 끝까지
+실행**했다. 아래는 전부 이번에 다시 실측한 결과다(창작·추정 없음).
 
-- `depth_refine/scripts/export_onnx.py --model fast_fs --out <tmp>.onnx` 실행 결과(요약,
-  전체 메시지는 더 상세함):
-  ```
-  [error] fast_fs export 준비 안 됨 -- 1개 문제:
-  [error] - 가중치 없음: .../weights/fast_fs/23-36-37/model_best_bp2_serialize.pth
-           (bash scripts_dev/setup_models.sh 실행; Google Drive 다운로드 쿼터로 실패했다면
-           third_party/README.md의 수동 복구 절차 참고)
-  ```
-  exit code 1.
-- `--model foundation_stereo`도 동일하게 가중치 없음(`weights/foundation_stereo/11-33-40/
-  model_best_bp2.pth`)으로 exit 1.
-- 두 경우 다 레포 클론(Task 14)·export 스크립트(`make_onnx.py`/`make_single_onnx.py`)·
-  서브프로세스 conda env(`fs_stereo`/`ffs_stereo`) 자체는 문제없이 확인됨 — **가중치
-  파일만** 막혀 있다(Google Drive 다운로드 쿼터, third_party/README.md에 상세 기록).
-- `depthref`/`fs_stereo`/`ffs_stereo` 세 env 모두 `onnx` 패키지가 설치돼 있지 않음을
-  확인(`ffs_stereo`에는 `onnxruntime` 1.27.0만 있음, 아마 다른 의존성이 딸려 들어온
-  것으로 추정) — 실제 export 시도 전에 `onnx`(그리고 `--check`를 쓰려면
-  `onnxruntime`)를 최소한 export를 실행하는 env(`fs_stereo`/`ffs_stereo`,
-  `torch.onnx.export()`가 내부적으로 `onnx` 패키지를 필요로 함)에 설치해야 한다.
-- `weights/foundation_stereo/11-33-40/cfg.yaml`(이미 다운로드됨, 514B)을 직접 열어보면
-  `vit_size: vits`가 이미 올바르게 들어 있다 — `make_onnx.py`가 이 파일을 자동으로 읽으므로
-  체크포인트만 도착하면 별도 cfg 수정 없이 바로 export를 시도할 수 있는 상태다.
+**가중치 확보 완료** (Task 16, 2026-08-14 — 루트 `README.md` §8·`third_party/README.md`와
+일치, 이번 fix 단계에서 `stat`으로 바이트 단위 재확인):
+
+| 파일 | 크기 |
+|---|---:|
+| `weights/foundation_stereo/11-33-40/model_best_bp2.pth` | 787,711,942 bytes (≈751MB) |
+| `weights/foundation_stereo/11-33-40/cfg.yaml` | 514 bytes (`vit_size: vits` 확인됨) |
+| `weights/fast_fs/23-36-37/model_best_bp2_serialize.pth` | 71,098,210 bytes (≈67.8MB) |
+| `weights/fast_fs/23-36-37/cfg.yaml` | 182 bytes |
+
+**onnx/onnxruntime 설치** (이번 fix 단계에서 실행 — export 전엔 `depthref`/`fs_stereo`/
+`ffs_stereo` 세 env 어디에도 `onnx`가 없었다, `ffs_stereo`에만 `onnxruntime` 1.27.0 보유):
+
+```bash
+~/miniconda3/bin/conda run -n depthref pip install onnx onnxruntime   # --check가 이 env에서 실행됨
+~/miniconda3/bin/conda run -n fs_stereo pip install onnx              # foundation_stereo export 서브프로세스용
+~/miniconda3/bin/conda run -n ffs_stereo pip install onnx             # fast_fs export 서브프로세스용
+```
+
+결과 `onnx==1.22.0`(세 env 공통) + `depthref`에 `onnxruntime==1.23.2`(`ffs_stereo`는 기존
+1.27.0 유지). **torch/transformers/numpy 핀 변화 없음을 설치 전/후 `pip list`로 직접
+대조 확인**(`depthref`: torch 2.3.1+cu121 / transformers 4.46.3 / numpy 2.2.6, `fs_stereo`:
+torch 2.4.1+cu121 / numpy 2.4.6, `ffs_stereo`: torch 2.6.0+cu124 / numpy 2.5.2 — 전부 설치
+전후 동일).
+
+**실제 export 실행 결과 — 둘 다 성공** (6GB VRAM 카드, 각 실행 시작 시점 `nvidia-smi` 여유
+4,611MiB, OOM 없이 완료; `torch.onnx.export()` 서브프로세스 15분 시간박스 안에서 훨씬 빠르게
+끝남):
+
+```
+$ ~/miniconda3/bin/conda run -n depthref python -m depth_refine.scripts.export_onnx \
+    --model fast_fs --height 480 --width 640 --iters 8 \
+    --out weights/fast_fs_480x640.onnx --check
+[export_onnx] fast_fs export 시작 (480x640, iters=8): ...
+[export_onnx] 완료: .../weights/fast_fs_480x640.onnx
+[export_onnx] onnx.checker 통과 -- IR version=8, opset=[ai.onnx:17]
+[export_onnx] onnxruntime 더미 추론 성공 -- 출력 shape: [[1, 1, 480, 640]]
+```
+exit 0, 소요시간 ≈20초. 산출물 `weights/fast_fs_480x640.onnx` **86,317,914 bytes(≈82.3MB)**,
+opset **17**(Orin TensorRT 8.5 상한 17과 정확히 일치, 이내), onnxruntime 더미 추론까지 성공
+(출력 shape `[1,1,480,640]` — 480×640 입력에 대응하는 단일채널 disparity map).
+
+```
+$ ~/miniconda3/bin/conda run -n depthref python -m depth_refine.scripts.export_onnx \
+    --model foundation_stereo --height 480 --width 640 --iters 8 \
+    --out weights/foundation_stereo_480x640.onnx --check
+[export_onnx] foundation_stereo export 시작 (480x640, iters=8): ...
+[export_onnx] 완료: .../weights/foundation_stereo_480x640.onnx
+[export_onnx] onnx.checker 통과 -- IR version=8, opset=[ai.onnx:16]
+[export_onnx] onnxruntime 더미 추론 성공 -- 출력 shape: [[1, 1, 480, 640]]
+```
+fast_fs가 빠르게(≈20초) 끝나 시간 여유가 있어 이어서 실행(§4 예시 명령은 448×672/iters=16을
+쓰지만, 시간 예산 안에서 fast_fs와 동일 조건으로 비교하려고 480×640/iters=8로 실행 — 둘 다
+32의 배수라 유효한 조합이고, §4의 예시 명령 자체는 바꾸지 않았다). exit 0, 소요시간 ≈81초.
+산출물 `weights/foundation_stereo_480x640.onnx` **127,458,999 bytes(≈121.6MB)**, opset
+**16**(상한 이내), onnxruntime 더미 추론 성공(출력 shape 동일 `[1,1,480,640]`).
+
+두 산출물 다 `weights/`(`.gitignore` 6행으로 전체 제외) 아래에 있다 — `git check-ignore -v`로
+직접 재확인했고 `git status --porcelain`에도 잡히지 않는다: **커밋 대상 아님, 디스크에만
+존재**.
 
 체크리스트:
 
-- [ ] **가중치 확보**: FoundationStereo `model_best_bp2.pth`, Fast-FoundationStereo
-      `model_best_bp2_serialize.pth` — Google Drive 쿼터 재시도 또는 수동 다운로드
-      (third_party/README.md의 정확한 링크/절차).
-- [ ] `fs_stereo`/`ffs_stereo` env에 `pip install onnx`(export에 필수) 및
-      `onnxruntime`(`--check`용, 선택) 추가.
-- [ ] 가중치 도착 후 PC에서 `export_onnx.py --model {foundation_stereo,fast_fs} --check`
-      실제 실행 → onnx.checker/opset 확인 결과를 이 문서에 추가.
-- [ ] Orin 준비: JetPack 5.1.x 플래시 확인, §3 절차로 torch(필요한 경우만) 설치.
-- [ ] onnx 파일을 Orin으로 복사, §5 `trtexec`로 `.engine` 빌드(모델별 1회).
+- [x] **가중치 확보**: FoundationStereo `model_best_bp2.pth`, Fast-FoundationStereo
+      `model_best_bp2_serialize.pth` — Task 16(2026-08-14)에서 Google Drive 쿼터 해소 후
+      확보 완료(위 표, 이번 fix 단계에서 바이트 단위 재확인).
+- [x] `fs_stereo`/`ffs_stereo`(및 `--check`가 실행되는 `depthref`) env에 `pip install onnx`/
+      `onnxruntime` 추가 — 이번 fix 단계에서 실행, torch/transformers 핀 불변 확인(위).
+- [x] 가중치 도착 후 PC에서 `export_onnx.py --model {foundation_stereo,fast_fs} --check`
+      실제 실행 → onnx.checker/opset 확인 결과를 이 문서에 추가 — 완료, 둘 다 성공(위 결과).
+- [ ] Orin 준비: JetPack 5.1.x 플래시 확인, §3 절차로 torch(필요한 경우만) 설치. (이 환경엔
+      실물 Orin이 없어 여전히 미실행 — 문서 상단 고지와 일치.)
+- [ ] onnx 파일을 Orin으로 복사, §5 `trtexec`로 `.engine` 빌드(모델별 1회). (미실행 — Orin
+      필요.)
 - [ ] §7 절차대로 PC torch vs Orin TRT EPE 비교 실행, 평균 EPE < 0.3px 확인 → 결과(수치,
-      프레임 수, 사용 해상도)를 이 문서에 추가.
-- [ ] Orin에서 프레임당 추론 시간 실측 → §8의 "1~5Hz면 충분" 가정 검증.
+      프레임 수, 사용 해상도)를 이 문서에 추가. (미실행 — Orin 필요.)
+- [ ] Orin에서 프레임당 추론 시간 실측 → §8의 "1~5Hz면 충분" 가정 검증. (미실행 — Orin
+      필요.)
 - [ ] (선택) `mono_scale`/`prompt_da`/`prior_da`를 온보드에서도 돌릴 계획이면 JP5 torch
       (2.0~2.1대)에서 재검증(PC에서는 torch==2.3.1로만 검증됨).
 - [ ] (선택) §7 EPE 비교를 자동화하는 스크립트 추가 고려(예:
