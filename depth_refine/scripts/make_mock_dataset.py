@@ -1,10 +1,12 @@
-"""CLI: 합성(mock) 데이터셋 생성 — wrist_left + head + calib_head(체커보드) + GT.
+"""CLI: 합성(mock) 데이터셋 생성 — wrist_left + head + GT.
 
     python -m depth_refine.scripts.make_mock_dataset \\
-        --out datasets/mock --frames 5 --calib-poses 15 --baseline 0.06
+        --out datasets/mock --frames 5 --baseline 0.06
 
-로봇 미연결 상태에서도 §4 데이터셋 폴더 포맷을 그대로 만들어, 이후 모든 처리 스크립트
-(refine_wrist/calibrate_head/stereo_head 등)를 실데이터 없이 검증할 수 있게 한다.
+로봇 미연결 상태에서도 데이터셋 폴더 포맷을 그대로 만들어, 처리 스크립트
+(refine_wrist 등)를 실데이터 없이 검증할 수 있게 한다.
+(체커보드 calib_head 생성은 헤드 스테레오 파이프라인 은퇴와 함께 제거 —
+2026-08-14, REPORT.md 참고. 헤드 깊이는 SDK 내장 FOUNDATION_STEREO 사용.)
 """
 from __future__ import annotations
 import argparse
@@ -12,7 +14,6 @@ from typing import List, Optional, Sequence
 
 from ..common.camera import CameraIntrinsics
 from ..dataset.writer import DatasetWriter
-from ..robot.checkerboard import default_poses, render_board_pair
 from ..robot.mock_source import MockSource
 
 DEFAULT_INTRINSICS = CameraIntrinsics(600.0, 600.0, 320.0, 240.0, 640, 480)
@@ -23,8 +24,6 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         description="합성 mock 데이터셋 생성 (wrist_left + head + calib_head)")
     p.add_argument("--out", required=True, help="데이터셋 출력 루트 경로")
     p.add_argument("--frames", type=int, default=5, help="wrist/head 프레임 수 (기본 5)")
-    p.add_argument("--calib-poses", type=int, default=15,
-                   help="체커보드 캘리브레이션 포즈 수, 0이면 생략 (기본 15)")
     p.add_argument("--baseline", type=float, default=0.06, help="헤드 스테레오 베이스라인 m (기본 0.06)")
     p.add_argument("--seed", type=int, default=0, help="mock 소스 랜덤 시드 (기본 0)")
     return p.parse_args(argv)
@@ -49,14 +48,6 @@ def main(argv: Optional[List[str]] = None) -> None:
         pair = head_src.get_head_pair()
         writer.add_head_pair(pair.left, pair.right, pair.ts_left_ns, pair.ts_right_ns,
                               gt_depth_left_m=pair.gt_depth_left_m)
-
-    # ---- calib_head: 합성 체커보드 세션 (head와 동일 intrinsics·baseline) ----
-    # default_poses에도 실제 baseline/intrinsics를 그대로 넘긴다 — 그렇지 않으면 포즈의
-    # "카메라 안에 들어오는지" 검증이 기본 baseline(0.06)만 가정해, --baseline이 그보다
-    # 크면 오른쪽 카메라에서 보드가 프레임을 벗어나는 포즈가 섞여 나올 수 있다.
-    for rvec, tvec in default_poses(args.calib_poses, baseline_m=args.baseline, intr=intr_l):
-        left, right = render_board_pair(intr_l, intr_r, args.baseline, rvec, tvec)
-        writer.add_calib_pair(left, right)
 
     writer.finalize()
 

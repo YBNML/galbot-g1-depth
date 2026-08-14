@@ -17,7 +17,7 @@ import numpy as np
 
 from depth_refine.dataset.reader import DatasetReader
 from depth_refine.refiners.base import available_refiners, get_refiner
-from depth_refine.refiners import classical, hybrid, mono_scale, prompt_da, prior_da  # noqa: F401
+from depth_refine.refiners import classical, hybrid, prompt_da  # noqa: F401
 
 
 def main():

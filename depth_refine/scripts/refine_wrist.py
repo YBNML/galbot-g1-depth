@@ -1,7 +1,7 @@
 """CLI: 손목(wrist) 깊이 정제기 비교 리포트 생성.
 
     python -m depth_refine.scripts.refine_wrist \\
-        --dataset datasets/mock --out reports/wrist --methods classical,mono_scale
+        --dataset datasets/mock --out reports/wrist --methods classical,hybrid_pda
 
 데이터셋의 각 wrist 프레임에 대해 선택된 정제 방법들을 실행해:
     - `frame_{idx:06d}.png`: [rgb, 입력 깊이, 방법별 출력..., GT(있으면)]를 나란히
@@ -35,13 +35,12 @@ from ._report import (
     write_metrics_csv,
 )
 
-# 임포트만으로 레지스트리 등록을 트리거한다. mono_scale/prompt_da/prior_da는 등록만
-# 가벼우며 실제 백엔드(torch 모델)는 refine() 최초 호출 시점에만 로드된다.
+# 임포트만으로 레지스트리 등록을 트리거한다. prompt_da/hybrid는 등록만 가벼우며
+# 실제 백엔드(torch 모델)는 refine() 최초 호출 시점에만 로드된다.
+# (mono_scale/prior_da는 2026-08-14 실데이터 평가에서 탈락해 제거 — REPORT.md §3.5)
 from ..refiners import classical  # noqa: F401
 from ..refiners import hybrid  # noqa: F401
-from ..refiners import mono_scale  # noqa: F401
 from ..refiners import prompt_da  # noqa: F401
-from ..refiners import prior_da  # noqa: F401
 
 
 def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:

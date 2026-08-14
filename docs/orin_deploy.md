@@ -1,5 +1,13 @@
 # Orin(Jetson AGX Orin, JetPack 5) 배포 가이드
 
+> **[2026-08-14 상태 갱신]** 이 문서가 다루던 FoundationStereo/Fast-FS 자체 배포는
+> **불필요해졌다** — SDK 1.9 내장 FOUNDATION_STEREO가 같은 일을 이미 수행함이 실측
+> 확인됨 (`REPORT.md` §2 참고). 관련 코드(`export_onnx.py`, `stereo/`)도 저장소에서
+> 제거됐다(git 히스토리에 보존). 그러나 §2(opset 제약)·§5(trtexec 빌드)·§6(INT8 비권장)
+> ·§7(EPE 검증)의 **TensorRT 변환 절차 자체는 손목 정제기(PromptDA) 가속에 그대로
+> 재사용 가능**해 문서를 유지한다 — REPORT.md 부록 C-2 참고.
+
+
 이 문서는 `foundation_stereo`/`fast_fs`(둘 다 `third_party/`, Task 14) 학습 기반 스테레오
 매칭 모델을 PC에서 ONNX로 export하고, Jetson AGX Orin(JetPack 5) 위에서 TensorRT 엔진으로
 빌드·검증·통합하는 절차를 정리한다. `depth_refine/scripts/export_onnx.py`(Task 15)가 §4의

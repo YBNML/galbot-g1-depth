@@ -16,11 +16,12 @@
 `--hz` Hz만큼 녹화해 DatasetWriter(§4 포맷)로 저장한다(`--mode frames`, 기본값). galbot
 소스는 head 촬영 전에 `get_head_extrinsics_sdk()` 참고값을 `head/extrinsics_sdk.json`으로
 1회 저장한다(DatasetWriter에는 대응 메서드가 없어 여기서 직접 기록 — 스테레오
-캘리브레이션은 calibrate_head.py로 별도 수행하는 참고용일 뿐이다).
+캘리브레이션 참고값일 뿐이다 — 실측상 SDK가 baseline 59.66mm를 직접 제공).
 
-`--mode calib`은 `calibrate_head.py`가 소비하는 §4 `calib_head/` 체커보드 좌우 쌍을
+`--mode calib`은 `calib_head/` 체커보드 좌우 쌍을 (구 헤드 캘리브레이션용 — 헤드
+파이프라인 은퇴 후에는 원시 페어 수집용으로만 유지, REPORT.md 참고)
 녹화한다 — 손목 프레임·헤드 intrinsics/extrinsics_sdk.json·동기 요약은 전부 관여하지
-않는다(`calib_head/`는 `calibrate_head.py`가 처음부터 다시 계산하므로 필요 없음).
+않는다.
 `--frames`개를 `--hz` 간격의 절대 스케줄로 캡처하되, 매 캡처 직전 `--countdown`초
 (기본 2.0) 대기해 조작자가 체커보드를 새 위치·기울기로 옮길 시간을 준다 — 캡처 직후
 진행 상황(`[calib] captured N/M — ...`)을 출력해 다음 위치로 옮기라고 안내한다.
@@ -183,7 +184,7 @@ def _record_calib(source: FrameSource, writer: DatasetWriter, args: argparse.Nam
     """헤드 체커보드 캘리브레이션 세션 녹화 (calib_head/) — N개 좌우 페어를 --hz 간격의
     절대 스케줄로(드리프트 무누적, _record와 동일한 방식) 수집하되, 매 캡처 직전
     --countdown초 대기해 조작자가 체커보드를 새 위치·기울기로 옮길 시간을 준다. 손목
-    프레임·헤드 intrinsics/extrinsics는 관여하지 않는다 — calibrate_head.py가 이
+    프레임·헤드 intrinsics/extrinsics는 관여하지 않는다 — 캘리브레이션 도구가 이
     좌우 쌍만으로 캘리브레이션을 처음부터 계산한다.
     """
     print("[calib] {}개 페어 캡처 예정 (캡처마다 {:.1f}초 대기) — 체커보드를 카메라 "
@@ -226,7 +227,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         # DatasetWriter는 프레임 인덱스를 항상 0부터 새로 매기며(PNG는 인덱스로 덮어쓰기)
         # timestamps.csv에는 행을 append만 한다 — 즉 이미 내용이 있는 --out 폴더에 다시
         # 쓰면 PNG는 새 프레임으로 덮어써지는데 timestamps.csv에는 이전 실행분 행이 남아
-        # 중복되어, 이후 위치 기반(row-order) 인덱싱을 하는 소비자(stereo_head.py 등)가
+        # 중복되어, 이후 위치 기반(row-order) 인덱싱을 하는 소비자가
         # 새 프레임을 이전 실행의 타임스탬프와 잘못 짝짓는다 — 크래시 없이 조용히 틀린
         # 결과를 만들어내므로(§4 포맷 재개(resume) 미지원) 여기서 미리 막는다. 빈 폴더(또는
         # 아직 없는 경로)는 정상 케이스라 통과시킨다.

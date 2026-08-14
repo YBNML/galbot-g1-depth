@@ -4,7 +4,7 @@ from depth_refine.scripts.refine_wrist import main as refine_wrist_main
 
 def test_report_generated(tmp_path):
     ds = tmp_path / "ds"; out = tmp_path / "rep"
-    make_mock(["--out", str(ds), "--frames", "2", "--calib-poses", "0"])
+    make_mock(["--out", str(ds), "--frames", "2"])
     subprocess.run([sys.executable, "-m", "depth_refine.scripts.refine_wrist",
                     "--dataset", str(ds), "--out", str(out), "--methods", "classical"], check=True)
     assert (out / "frame_000000.png").exists()
@@ -16,7 +16,7 @@ def test_skip_message_matches_task8_contract(tmp_path, capsys):
     # method that can't run — locks this down so the shared _report.select_methods() helper
     # (extracted in Task 11) can't silently drift from it again (e.g. by injecting a label).
     ds = tmp_path / "ds"; out = tmp_path / "rep"
-    make_mock(["--out", str(ds), "--frames", "1", "--calib-poses", "0"])
+    make_mock(["--out", str(ds), "--frames", "1"])
     ret = refine_wrist_main(["--dataset", str(ds), "--out", str(out),
                               "--methods", "doesnotexist,classical"])
     assert ret == 0
