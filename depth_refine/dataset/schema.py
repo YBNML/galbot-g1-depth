@@ -2,7 +2,7 @@
 
 <root>/
     meta.json                      {"source", "created", "depth_unit": "mm"}
-    wrist_left/
+    wrist_left/                    # --side right로 녹화하면 wrist_right/ (구조 동일)
         rgb/000000.png              8bit BGR
         depth/000000.png            16bit PNG, mm 단위
         gt_depth/000000.png         [옵션] 16bit PNG, mm 단위
@@ -22,8 +22,19 @@ import numpy as np
 # ---- 인터페이스 계약: 이후 태스크가 그대로 import하는 이름들 ----
 DEPTH_UNIT_MM = 1000.0
 WRIST_DIR = "wrist_left"
+WRIST_DIR_RIGHT = "wrist_right"
 HEAD_DIR = "head"
 CALIB_DIR = "calib_head"
+
+
+def wrist_dir_name(side: str = "left") -> str:
+    """녹화한 손목 side('left'|'right')에 따른 데이터 폴더명.
+
+    2026-08-14 이전에는 side와 무관하게 항상 wrist_left/였다(--side right 녹화도) —
+    실데이터 인수인계 때 혼동이 확인되어 side 인지형으로 변경. DatasetReader는
+    두 이름을 모두 자동 인식하므로 구버전 데이터셋도 그대로 읽힌다.
+    """
+    return WRIST_DIR if side == "left" else WRIST_DIR_RIGHT
 
 # ---- 내부 공유 상수 (writer/reader 전용) ----
 META_FILE = "meta.json"

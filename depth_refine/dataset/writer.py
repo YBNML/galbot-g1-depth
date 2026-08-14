@@ -32,9 +32,10 @@ def _append_csv_row(path: Path, header: List[str], row: List[int]) -> None:
 class DatasetWriter:
     """§4 데이터셋 폴더 포맷을 기록. record.py(로봇)와 make_mock_dataset.py(PC)가 사용."""
 
-    def __init__(self, root: PathLike, source: str) -> None:
+    def __init__(self, root: PathLike, source: str, wrist_side: str = "left") -> None:
         self.root = Path(root)
         self.source = source
+        self._wrist_dirname = schema.wrist_dir_name(wrist_side)
         self.root.mkdir(parents=True, exist_ok=True)
         self._wrist_idx = 0
         self._head_idx = 0
@@ -44,7 +45,7 @@ class DatasetWriter:
     def add_wrist_frame(self, rgb_bgr: np.ndarray, depth_m: np.ndarray, intr: CameraIntrinsics,
                          ts_rgb_ns: int, ts_depth_ns: int,
                          gt_depth_m: Optional[np.ndarray] = None) -> int:
-        wrist_dir = self.root / schema.WRIST_DIR
+        wrist_dir = self.root / self._wrist_dirname
         rgb_dir = wrist_dir / schema.RGB_SUBDIR
         depth_dir = wrist_dir / schema.DEPTH_SUBDIR
         rgb_dir.mkdir(parents=True, exist_ok=True)

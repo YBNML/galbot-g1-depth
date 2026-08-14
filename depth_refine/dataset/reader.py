@@ -49,10 +49,16 @@ class DatasetReader:
         self.root = Path(root)
         with open(self.root / schema.META_FILE) as f:
             self.meta: Dict = json.load(f)
+        # 손목 폴더명 자동 인식: wrist_left(기본)가 없고 wrist_right가 있으면 그것을 사용
+        # (--side right 녹화 데이터셋, schema.wrist_dir_name 참고).
+        self._wrist_dirname = schema.WRIST_DIR
+        if not (self.root / schema.WRIST_DIR).is_dir() and \
+                (self.root / schema.WRIST_DIR_RIGHT).is_dir():
+            self._wrist_dirname = schema.WRIST_DIR_RIGHT
 
     # ---------------- intrinsics ----------------
     def wrist_intrinsics(self) -> CameraIntrinsics:
-        path = self.root / schema.WRIST_DIR / schema.WRIST_INTRINSICS_FILE
+        path = self.root / self._wrist_dirname / schema.WRIST_INTRINSICS_FILE
         return CameraIntrinsics.from_json(path)
 
     def head_intrinsics(self) -> Tuple[CameraIntrinsics, CameraIntrinsics]:
@@ -63,7 +69,7 @@ class DatasetReader:
 
     # ---------------- iteration ----------------
     def iter_wrist(self) -> Iterator[dict]:
-        wrist_dir = self.root / schema.WRIST_DIR
+        wrist_dir = self.root / self._wrist_dirname
         depth_dir = wrist_dir / schema.DEPTH_SUBDIR
         gt_dir = wrist_dir / schema.GT_DEPTH_SUBDIR
         for idx, rgb_path in _indexed_pngs(wrist_dir / schema.RGB_SUBDIR):
@@ -97,7 +103,7 @@ class DatasetReader:
 
     # ---------------- timestamps ----------------
     def wrist_timestamps(self) -> np.ndarray:
-        return _read_timestamps(self.root / schema.WRIST_DIR / schema.TIMESTAMPS_FILE)
+        return _read_timestamps(self.root / self._wrist_dirname / schema.TIMESTAMPS_FILE)
 
     def head_timestamps(self) -> np.ndarray:
         return _read_timestamps(self.root / schema.HEAD_DIR / schema.TIMESTAMPS_FILE)

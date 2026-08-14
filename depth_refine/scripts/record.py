@@ -236,7 +236,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                   "다시 실행하세요 (기존 녹화에 이어쓰기는 지원되지 않습니다)".format(args.out))
             return 1
 
-        writer = DatasetWriter(args.out, source=args.source)
+        writer = DatasetWriter(args.out, source=args.source, wrist_side=args.side)
         try:
             if args.mode == "calib":
                 _record_calib(source, writer, args)
