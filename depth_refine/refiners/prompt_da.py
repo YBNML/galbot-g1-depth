@@ -162,15 +162,31 @@ class PromptDaRefiner(DepthRefiner):
             rgb_f = cv2.resize(rgb_f, (model_w, model_h), interpolation=cv2.INTER_LINEAR)
         image = torch.from_numpy(np.ascontiguousarray(rgb_f)).permute(2, 0, 1).unsqueeze(0).to(device)
 
-        # 프롬프트: depth_m을 저해상도로 다운샘플하되, 홀(0)은 먼저 유효 픽셀의 중앙값으로
+        # 프롬프트: depth_m을 저해상도로 다운샘플하되, 홀(0)은 **최근접 유효 픽셀 값**으로
         # 채운다 — PromptDA의 normalize()가 리터럴 min/max를 쓰기 때문에 0을 그대로 두면
-        # 정규화가 깨진다(모듈 독스트링의 실측 설명 참고). 채운 뒤에는 선형보간으로
-        # 다운샘플해도 안전(더 이상 인위적인 0이 유효값과 섞이지 않음).
+        # 정규화가 깨진다(모듈 독스트링의 실측 설명 참고). 이전 구현은 장면 중앙값 하나로
+        # 채웠는데, 실 D405 데이터는 홀이 20~30%(주로 원거리 배경)라 "배경 전체가 중앙값
+        # 거리"라는 오염된 프롬프트가 되어 출력에 전역 편차를 만들었다(2026-08-14 G1 실데이터
+        # holdout에서 확인). 최근접 채움은 프롬프트 해상도(_PROMPT_HW)에서 수행해 비용이
+        # 무시할 수준이고, 홀 주변의 국소 깊이 구조를 보존한다.
         depth_f = np.asarray(depth_m, dtype=np.float32)
         mask = valid_mask(depth_f)
-        fill_value = float(np.median(depth_f[mask])) if np.any(mask) else 0.0
-        filled = np.where(mask, depth_f, fill_value).astype(np.float32)
-        prompt = cv2.resize(filled, (_PROMPT_HW[1], _PROMPT_HW[0]), interpolation=cv2.INTER_LINEAR)
+        masked = np.where(mask, depth_f, 0.0).astype(np.float32)
+        small = cv2.resize(masked, (_PROMPT_HW[1], _PROMPT_HW[0]),
+                           interpolation=cv2.INTER_NEAREST)
+        hole_small = (small <= 0).astype(np.uint8)
+        if hole_small.any() and (hole_small == 0).any():
+            # distanceTransformWithLabels: 각 홀 픽셀 -> 최근접 유효 픽셀 라벨.
+            # DIST_LABEL_PIXEL 라벨은 유효(src==0) 픽셀을 행우선 순서로 1..N 매김.
+            _, labels = cv2.distanceTransformWithLabels(
+                hole_small, cv2.DIST_L2, 3, labelType=cv2.DIST_LABEL_PIXEL)
+            valid_values = small[hole_small == 0]
+            prompt = valid_values[labels - 1]
+            prompt[hole_small == 0] = small[hole_small == 0]
+        elif (hole_small == 0).any():
+            prompt = small
+        else:
+            prompt = np.full_like(small, float(np.median(depth_f[mask])) if np.any(mask) else 0.0)
         prompt_t = torch.from_numpy(np.ascontiguousarray(prompt)).unsqueeze(0).unsqueeze(0).to(device)
 
         with torch.no_grad():

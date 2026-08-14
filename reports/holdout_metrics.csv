@@ -1,0 +1,9 @@
+dataset,method,frames,mae_mm,rmse_mm,unfilled_holdout
+wrist_bottle_left,classical,10,13.17,70.72,0.0
+wrist_bottle_left,mono_scale,10,770.98,1419.2,0.0
+wrist_thin_left,classical,10,11.69,67.99,0.0
+wrist_thin_left,mono_scale,10,1455.63,81356.13,0.0726
+wrist_texless_left,classical,10,11.33,60.96,0.0
+wrist_texless_left,mono_scale,10,1265.22,78726.75,0.0153
+wrist_close_left,classical,10,5.12,43.32,0.0
+wrist_close_left,mono_scale,10,329.94,1950.05,0.0033

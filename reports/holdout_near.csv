@@ -1,0 +1,7 @@
+dataset,method,frames,mae_mm,mae_near1m_mm,rmse_mm,unfilled_holdout
+wrist_bottle_left,classical,10,13.17,4.05,70.72,0.0
+wrist_bottle_left,prompt_da,10,346.51,64.14,865.86,0.0
+wrist_thin_left,classical,10,11.69,4.22,67.99,0.0
+wrist_thin_left,prompt_da,10,305.7,65.0,770.88,0.0
+wrist_close_left,classical,10,5.12,1.94,43.32,0.0
+wrist_close_left,prompt_da,10,192.82,22.93,702.88,0.0

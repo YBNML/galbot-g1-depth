@@ -1,0 +1,184 @@
+{
+  "frame_names": [
+    "right_front_surround_color_optical_frame",
+    "right_arm_base_link",
+    "head_left_camera_color_optical_frame",
+    "head_end_effector_mount_link",
+    "left_rear_surround_color_optical_frame",
+    "left_arm_base_link",
+    "right_arm_camera_color_optical_frame",
+    "right_arm_end_effector_mount_link",
+    "left_arm_camera_color_optical_frame",
+    "left_arm_end_effector_mount_link",
+    "imu_base_link",
+    "base_link",
+    "right_rear_surround_color_optical_frame",
+    "left_front_surround_color_optical_frame",
+    "lidar_base_link",
+    "head_right_camera_color_optical_frame",
+    "head_link2",
+    "head_base_link",
+    "torso_head_mount_link",
+    "left_arm_link7",
+    "torso_left_arm_mount_link",
+    "leg_end_effector_mount_link",
+    "leg_link5",
+    "leg_base_link",
+    "omni_chassis_leg_mount_link",
+    "omni_chassis_base_link",
+    "right_arm_link7",
+    "torso_right_arm_mount_link",
+    "torso_base_link",
+    "head_link1",
+    "left_arm_link1",
+    "left_arm_link2",
+    "left_arm_link3",
+    "left_arm_link4",
+    "left_arm_link5",
+    "left_arm_link6",
+    "leg_link1",
+    "leg_link2",
+    "leg_link3",
+    "leg_link4",
+    "right_arm_link1",
+    "right_arm_link2",
+    "right_arm_link3",
+    "right_arm_link4",
+    "right_arm_link5",
+    "right_arm_link6"
+  ],
+  "get_sensor_extrinsic": {
+    "head_left": {
+      "base_link": {
+        "pose": [
+          0.20705163340982657,
+          0.03095800596663518,
+          1.3610890359511036,
+          -0.6302183148174356,
+          0.6337747473050019,
+          -0.3164971094530453,
+          0.3177798373953574
+        ],
+        "ts": 1786686015450289466
+      },
+      "torso_base_link": {
+        "pose": [
+          0.031431380257561564,
+          0.39583422024300857,
+          0.09823882255682113,
+          0.0020307404546810698,
+          -0.3191610847713927,
+          0.9476944537805838,
+          -0.002701913076807551
+        ],
+        "ts": 1786686015450289466
+      }
+    },
+    "head_right": {
+      "base_link": {
+        "pose": [
+          0.20682551063878618,
+          -0.02872541427583502,
+          1.360852336648632,
+          -0.630195889027789,
+          0.6338058894035521,
+          -0.31648712596295325,
+          0.3177721433819468
+        ],
+        "ts": 1786686014914312000
+      },
+      "torso_base_link": {
+        "pose": [
+          -0.02823258279054691,
+          0.3954480560116275,
+          0.09836563802249634,
+          0.002021946317380457,
+          -0.31917693484889936,
+          0.9476891257699361,
+          -0.00270497522451511
+        ],
+        "ts": 1786686014914312000
+      }
+    },
+    "left_arm": {
+      "base_link": {
+        "pose": [
+          0.3354543639284152,
+          0.44350186422521687,
+          0.8510993626726544,
+          -0.5304509218099014,
+          0.6653129727032806,
+          -0.40351419500261165,
+          0.3363878153785361
+        ],
+        "ts": 1786686015450289466
+      },
+      "torso_base_link": {
+        "pose": [
+          0.44600540630052765,
+          -0.11423332799904098,
+          0.21960041534068384,
+          -0.09802354338253046,
+          -0.2325392166746195,
+          0.9670380341336504,
+          -0.03397555282864733
+        ],
+        "ts": 1786686015450289466
+      }
+    },
+    "left_arm_depth": {
+      "base_link": {
+        "pose": [
+          0.3354543639284152,
+          0.44350186422521687,
+          0.8510993626726544,
+          -0.5304509218099014,
+          0.6653129727032806,
+          -0.40351419500261165,
+          0.3363878153785361
+        ],
+        "ts": 1786686015450289466
+      },
+      "torso_base_link": {
+        "pose": [
+          0.44600540630052765,
+          -0.11423332799904098,
+          0.21960041534068384,
+          -0.09802354338253046,
+          -0.2325392166746195,
+          0.9670380341336504,
+          -0.03397555282864733
+        ],
+        "ts": 1786686015450289466
+      }
+    }
+  },
+  "get_transform": {
+    "head_left_camera_color_optical_frame <- head_right_camera_color_optical_frame": {
+      "transform": [
+        0.05966350231331409,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "ts": 1786686014914312000,
+      "translation_norm_mm": 59.66350231331409
+    },
+    "base_link <- head_left_camera_color_optical_frame": {
+      "transform": [
+        0.20705163340982657,
+        0.03095800596663518,
+        1.3610890359511036,
+        -0.6302183148174356,
+        0.6337747473050019,
+        -0.3164971094530453,
+        0.3177798373953574
+      ],
+      "ts": 1786686015450289466,
+      "translation_norm_mm": 1377.0955452754222
+    }
+  }
+}

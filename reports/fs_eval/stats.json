@@ -1,0 +1,88 @@
+{
+  "intrinsics": {
+    "head_left": {},
+    "head_right": {}
+  },
+  "foundation_stereo": {
+    "module": "foundation_stereo",
+    "result_info": " 0 objs \nTarget Poses: 0\nResult Point Cloud: 0\nRunning Info: \nocrString: ",
+    "sensor_name": "head_left_camera_color_optical_frame",
+    "timestamp_ns": 1786670951206078398,
+    "point_clouds_len": 0,
+    "depth_stats": {
+      "shape": [
+        960,
+        1280
+      ],
+      "dtype": "uint16",
+      "hole_ratio": 0.0,
+      "nan_ratio": 0.0,
+      "min": 151.0,
+      "max": 7411.0,
+      "p01": 216.0,
+      "p05": 483.0,
+      "p50": 1259.0,
+      "p95": 5429.0,
+      "p99": 6252.0,
+      "mean": 1901.9358610026043
+    },
+    "latency_ms": {
+      "first": 1603.8018850003937,
+      "rest_mean": 1783.1338952501028,
+      "rest_std": 127.65853215727654,
+      "all": [
+        1603.8018850003937,
+        1588.113417000386,
+        1760.5820629996742,
+        1853.3430100005717,
+        1930.4970909997792
+      ]
+    },
+    "temporal": {
+      "valid_all_ratio": 1.0,
+      "px_std_median": 6.79411506652832,
+      "px_std_p95": 235.93524093627943
+    }
+  },
+  "light_stereo": {
+    "module": "light_stereo",
+    "result_info": " 0 objs \nTarget Poses: 0\nResult Point Cloud: 0\nRunning Info: \nocrString: ",
+    "sensor_name": "head_left_camera_color_optical_frame",
+    "timestamp_ns": 1786670960122165430,
+    "point_clouds_len": 0,
+    "depth_stats": {
+      "shape": [
+        960,
+        1280
+      ],
+      "dtype": "uint16",
+      "hole_ratio": 0.0,
+      "nan_ratio": 0.0,
+      "min": 68.0,
+      "max": 4693.0,
+      "p01": 178.0,
+      "p05": 385.0,
+      "p50": 1164.0,
+      "p95": 2336.0,
+      "p99": 3440.0,
+      "mean": 1257.0321215820313
+    },
+    "latency_ms": {
+      "first": 24.034634000599908,
+      "rest_mean": 20.025501750069452,
+      "rest_std": 1.3136231071109423,
+      "all": [
+        24.034634000599908,
+        22.171896000145352,
+        18.642807999640354,
+        19.858073000250442,
+        19.42923000024166
+      ]
+    },
+    "temporal": {
+      "valid_all_ratio": 1.0,
+      "px_std_median": 22.535306930541992,
+      "px_std_p95": 139.1310272216797
+    }
+  }
+}

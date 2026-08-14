@@ -1,0 +1,20 @@
+{
+  "ir1": "empty after 15s polling",
+  "ir2": "empty after 15s polling",
+  "head_lr_skew_ms": {
+    "median": 0.0,
+    "max": 0.0,
+    "all": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

@@ -71,9 +71,10 @@ def _parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
                    help="손목 카메라 좌/우 (galbot 전용, frames 모드 전용, 기본 left)")
     p.add_argument("--dry-run", action="store_true",
                    help="프레임 1개씩만 얻어 구조를 출력하고 종료 (아무것도 쓰지 않음)")
-    p.add_argument("--depth-scale", type=float, default=1000.0,
-                   help="손목 깊이 raw 값 -> 미터 환산 스케일 (galbot 전용, frames 모드 전용, "
-                        "기본 1000.0)")
+    p.add_argument("--depth-scale", type=float, default=10000.0,
+                   help="손목 깊이 raw 값 -> 미터 환산 스케일 폴백 (galbot 전용). SDK 깊이 "
+                        "메시지에 depth_scale 필드가 있으면 그 값이 우선한다 (실측: 10000 "
+                        "= 0.1mm 단위). 기본 10000.0")
     p.add_argument("--countdown", type=float, default=2.0,
                    help="calib 모드에서 각 캡처 직전 대기 시간(초) — 체커보드를 새 위치로 "
                         "옮길 시간 (기본 2.0)")

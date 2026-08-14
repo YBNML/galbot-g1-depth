@@ -1,0 +1,281 @@
+{
+  "robot_init": {
+    "ok": true,
+    "sync_mode": true
+  },
+  "perception_init": true,
+  "head_synced_pair": {
+    "ok": false,
+    "note": "obs is None",
+    "fallback_get_rgb_data": true
+  },
+  "head_get_depth_data_head_left": {
+    "empty": true,
+    "summary": null
+  },
+  "head_get_depth_data_head_right": {
+    "empty": true,
+    "summary": null
+  },
+  "foundation_stereo": {
+    "latency_ms": 1596.8046919997505,
+    "sensor_name": "head_left_camera_color_optical_frame",
+    "stats_mm": {
+      "shape": [
+        960,
+        1280
+      ],
+      "dtype": "uint16",
+      "hole_ratio": 0.0,
+      "min": 150.0,
+      "max": 6635.0,
+      "p01": 214.0,
+      "p05": 475.0,
+      "p50": 1258.0,
+      "p95": 5449.0,
+      "p99": 6081.0,
+      "mean": 1927.5186946614583
+    }
+  },
+  "sgbm": {
+    "latency_ms": 182.7622219998375,
+    "num_disparities": 128,
+    "baseline_m_assumed": 0.05966,
+    "stats_mm": {
+      "shape": [
+        960,
+        1280
+      ],
+      "dtype": "float32",
+      "hole_ratio": 0.25111979166666665,
+      "min": 195.35279846191406,
+      "max": 44106.3203125,
+      "p01": 330.7973937988281,
+      "p05": 411.3542785644531,
+      "p50": 1225.175537109375,
+      "p95": 5223.11669921875,
+      "p99": 8269.9345703125,
+      "mean": 1925.6477058333508
+    }
+  },
+  "fs_vs_sgbm": {
+    "mutual_valid_ratio": 0.7488802083333334,
+    "abs_diff_mm": {
+      "median": 51.5445556640625,
+      "mean": 429.6630067045982,
+      "p95": 1934.5507568359362
+    },
+    "abs_diff_mm_near_1p5m": {
+      "ratio": 0.4999308268229167,
+      "median": 31.3922119140625,
+      "p95": 368.7855224609375
+    }
+  },
+  "wrist": {
+    "rgb_summary": {
+      "header": {
+        "frame_id": "left_arm_camera_color_optical_frame",
+        "timestamp_ns": 1786671713984724224
+      },
+      "format": "rgb8",
+      "data": "<bytes:46906>"
+    },
+    "rgb_shape": [
+      720,
+      1280,
+      3
+    ],
+    "depth_summary": {
+      "header": {
+        "frame_id": "left_arm_camera_color_optical_frame",
+        "timestamp_ns": 1786671714051382528
+      },
+      "format": "16UC1",
+      "depth_scale": 10000,
+      "height": 720,
+      "width": 1280,
+      "data": "<bytes:1843200>"
+    },
+    "depth_decode_note": "raw uint16 (1280x720)",
+    "depth_stats_raw": {
+      "shape": [
+        720,
+        1280
+      ],
+      "dtype": "uint16",
+      "hole_ratio": 0.27580946180555554,
+      "min": 937.0,
+      "max": 64756.0,
+      "p01": 1017.0,
+      "p05": 1148.0,
+      "p50": 9655.0,
+      "p95": 44187.0,
+      "p99": 58685.0,
+      "mean": 12551.731381121763
+    },
+    "depth_scale_field": 10000,
+    "depth_vis_range_raw": [
+      1017.0,
+      58685.0
+    ],
+    "ir1_summary": null,
+    "ir1_empty": true,
+    "ir2_summary": null,
+    "ir2_empty": true,
+    "intrinsic_rgb": {
+      "header": {
+        "frame_id": "left_arm_camera_color_optical_frame",
+        "timestamp_ns": 1786671714118040832
+      },
+      "height": 720,
+      "width": 1280,
+      "distortion_model": "plumb_bob",
+      "D": [
+        -0.050278499722480774,
+        0.05717771127820015,
+        0.0019957018084824085,
+        0.0007457590545527637,
+        -0.01883379928767681
+      ],
+      "K": [
+        653.4796142578125,
+        0.0,
+        642.8536987304688,
+        0.0,
+        652.95654296875,
+        358.3246765136719,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "R": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "P": [
+        653.4796142578125,
+        0.0,
+        642.8536987304688,
+        0.0,
+        0.0,
+        652.95654296875,
+        358.3246765136719,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "binning_x": 0,
+      "binning_y": 0,
+      "roi": {
+        "x_offset": 0,
+        "y_offset": 0,
+        "height": 720,
+        "width": 1280,
+        "do_rectify": false
+      },
+      "camera_type": "D405",
+      "T": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "intrinsic_depth": {
+      "header": {
+        "frame_id": "left_arm_camera_color_optical_frame",
+        "timestamp_ns": 1786671714118040832
+      },
+      "height": 720,
+      "width": 1280,
+      "distortion_model": "plumb_bob",
+      "D": [
+        -0.050278499722480774,
+        0.05717771127820015,
+        0.0019957018084824085,
+        0.0007457590545527637,
+        -0.01883379928767681
+      ],
+      "K": [
+        653.4796142578125,
+        0.0,
+        642.8536987304688,
+        0.0,
+        652.95654296875,
+        358.3246765136719,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "R": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "P": [
+        653.4796142578125,
+        0.0,
+        642.8536987304688,
+        0.0,
+        0.0,
+        652.95654296875,
+        358.3246765136719,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "binning_x": 0,
+      "binning_y": 0,
+      "roi": {
+        "x_offset": 0,
+        "y_offset": 0,
+        "height": 720,
+        "width": 1280,
+        "do_rectify": false
+      },
+      "camera_type": "D405",
+      "T": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "intrinsic_ir1": "empty",
+    "intrinsic_ir2": "empty",
+    "synced": "obs is None"
+  }
+}

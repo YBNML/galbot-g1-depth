@@ -1,0 +1,4 @@
+dataset,method,frames,mae_mm,mae_near1m_mm,rmse_mm,unfilled_holdout
+wrist_bottle_left,prior_da,10,205.81,70.2,574.47,0.0
+wrist_thin_left,prior_da,10,182.26,55.38,524.93,0.0
+wrist_close_left,prior_da,10,109.96,48.58,414.51,0.0

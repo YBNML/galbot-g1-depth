@@ -1,0 +1,4 @@
+dataset,method,frames,mae_mm,mae_near1m_mm,rmse_mm,unfilled_holdout
+wrist_bottle_left,hybrid_pda,10,47.94,11.78,152.2,0.0
+wrist_thin_left,hybrid_pda,10,47.99,15.72,155.15,0.0
+wrist_close_left,hybrid_pda,10,20.36,6.79,103.46,0.0
